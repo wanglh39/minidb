@@ -1,0 +1,61 @@
+# C 构建产物
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# Doxygen
+docs/html/
+docs/latex/
+docs/xml/
+
+# MkDocs
+docs/site/
+
+# Python（阶段2）
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# uv
+.python-version
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 数据库测试产物
+*.db
+*.wal
+*.log
+*.tmp
+
+# TPC-H 数据
+phase2/03-index-strategy/data/*.tbl
+phase2/03-index-strategy/data/*.csv

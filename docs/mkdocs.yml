@@ -1,0 +1,87 @@
+site_name: miniDB — 从零造一个关系型数据库
+site_description: 教学性项目：用 C 语言从字节级造一个迷你 RDBMS，再深入 SQLite/PostgreSQL 实战
+site_url: https://example.github.io/minidb/
+repo_url: https://github.com/example/minidb
+repo_name: example/minidb
+docs_dir: .
+site_dir: site
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: 切换到暗色模式
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: 切换到亮色模式
+  font:
+    text: Noto Sans SC
+    code: JetBrains Mono
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: true
+  - footnotes
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search:
+      lang:
+        - en
+        - zh
+
+nav:
+  - 首页: index.md
+  - 蓝图: ../BLUEPRINT.md
+  - 阶段1 - 从零造数据库:
+      - 概述: phase1/index.md
+      - 章0 项目基础设施: phase1/00-infrastructure.md
+      - 章1 存储基础: phase1/01-storage.md
+      - 章2 Buffer Pool: phase1/02-buffer-pool.md
+      - 章3 B+Tree 索引: phase1/03-btree.md
+      - 章4 堆表存储: phase1/04-heap.md
+      - 章5 WAL 与崩溃恢复: phase1/05-wal-recovery.md
+      - 章6 事务与并发控制: phase1/06-txn-mvcc.md
+      - 章7 SQL 解析: phase1/07-sql-parser.md
+      - 章8 查询优化: phase1/08-optimizer.md
+      - 章9 执行引擎: phase1/09-executor.md
+      - 章10 网络协议与CLI: phase1/10-server.md
+      - 章11 集成与压测: phase1/11-integration.md
+  - 阶段2 - 实际数据库使用:
+      - 概述: phase2/index.md
+      - 章1 SQLite 深入: phase2/01-sqlite-deep.md
+      - 章2 PostgreSQL 架构: phase2/02-postgresql-deep.md
+      - 章3 索引策略实战: phase2/03-index-strategy.md
+      - 章4 事务与隔离级别: phase2/04-transaction.md
+      - 章5 连接池与后端集成: phase2/05-connection-pool.md
+      - 章6 查询性能调优: phase2/06-query-tuning.md
+      - 章7 高可用与扩展: phase2/07-ha-scaling.md
+      - 章8 数据库运维: phase2/08-ops.md
