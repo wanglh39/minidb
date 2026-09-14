@@ -73,8 +73,8 @@ nav:
       - 章7 SQL 解析: phase1/07-sql-parser.md
       - 章8 查询优化: phase1/08-optimizer.md
       - 章9 执行引擎: phase1/09-executor.md
-      - 章10 网络协议与CLI: phase1/10-server.md
-      - 章11 集成与压测: phase1/11-integration.md
+      - 章10 CLI与网络协议: phase1/10-cli.md
+      - 章11 集成与压测: phase1/11-integration-benchmark.md
   - 阶段2 - 实际数据库使用:
       - 概述: phase2/index.md
       - 章1 SQLite 深入: phase2/01-sqlite-deep.md

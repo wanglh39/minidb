@@ -1,0 +1,283 @@
+version: "3.9"
+
+services:
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.10
+    container_name: minidb-etcd
+    environment:
+      ETCD_NAME: etcd1
+      ETCD_DATA_DIR: /etcd-data
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: minidb-etcd-cluster
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minidb-ha
+
+  pg-primary:
+    image: postgres:16
+    container_name: minidb-pg-primary
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pg_pass
+      POSTGRES_DB: mydb
+    entrypoint:
+      - bash
+      - -c
+      - |
+        docker-entrypoint.sh postgres &
+        PG_PID=$$!
+        until pg_isready -U postgres; do sleep 1; done
+        psql -U postgres -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'repl_pass';" || true
+        psql -U postgres -c "SELECT pg_create_physical_replication_slot('standby_slot');" || true
+        wait $$PG_PID
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-primary-data:/var/lib/postgresql/data
+      - ./pg-primary-init:/docker-entrypoint-initdb.d
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "wal_keep_size=1024MB"
+      - "-c"
+      - "hot_standby=on"
+      - "-c"
+      - "synchronous_commit=on"
+      - "-c"
+      - "max_connections=200"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minidb-ha
+
+  pg-standby:
+    image: postgres:16
+    container_name: minidb-pg-standby
+    environment:
+      PGUSER: replicator
+      PGPASSWORD: repl_pass
+    entrypoint:
+      - bash
+      - -c
+      - |
+        rm -rf /var/lib/postgresql/data/*
+        until pg_isready -h pg-primary -p 5432 -U replicator; do sleep 1; done
+        PGPASSWORD=repl_pass pg_basebackup \
+          -h pg-primary -p 5432 -U replicator \
+          -D /var/lib/postgresql/data \
+          -Fp -Xs -P -R -S standby_slot -C
+        echo "primary_conninfo = 'host=pg-primary port=5432 user=replicator password=repl_pass application_name=standby1'" \
+          >> /var/lib/postgresql/data/postgresql.auto.conf
+        touch /var/lib/postgresql/data/standby.signal
+        exec docker-entrypoint.sh postgres
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-standby-data:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      - "-c"
+      - "hot_standby=on"
+      - "-c"
+      - "hot_standby_feedback=on"
+      - "-c"
+      - "max_standby_streaming_delay=30s"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minidb-ha
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.21.0
+    container_name: minidb-pgbouncer
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: pg_pass
+      DB_HOST: pg-primary
+      DB_PORT: 5432
+      DB_NAME: mydb
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 20
+      SERVER_RESET_QUERY: "DISCARD ALL"
+    ports:
+      - "6432:5432"
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minidb-ha
+
+  patroni-primary:
+    image: harbor.zhihui.com/patroni:3.0.1-pg16
+    container_name: minidb-patroni-primary
+    hostname: patroni-primary
+    environment:
+      PATRONI_CONFIGURATION: |
+        scope: pg-cluster
+        name: patroni-primary
+        restapi:
+          listen: 0.0.0.0:8008
+          connect_address: patroni-primary:8008
+        etcd:
+          host: etcd:2379
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            synchronous_mode: false
+            postgresql:
+              use_pg_rewind: true
+              parameters:
+                wal_level: replica
+                max_wal_senders: 10
+                hot_standby: on
+        postgresql:
+          listen: 0.0.0.0:5432
+          connect_address: patroni-primary:5432
+          data_dir: /var/lib/postgresql/data
+          bin_dir: /usr/lib/postgresql/16/bin
+          authentication:
+            replication:
+              username: replicator
+              password: repl_pass
+            superuser:
+              username: postgres
+              password: pg_pass
+          pg_hba:
+            - host replication replicator 0.0.0.0/0 md5
+            - host all all 0.0.0.0/0 md5
+        tags:
+          nofailover: false
+          noloadbalance: false
+          clonefrom: false
+    ports:
+      - "8008:8008"
+      - "5440:5432"
+    volumes:
+      - patroni-primary-data:/var/lib/postgresql/data
+    depends_on:
+      etcd:
+        condition: service_healthy
+    networks:
+      - minidb-ha
+
+  patroni-standby:
+    image: harbor.zhihui.com/patroni:3.0.1-pg16
+    container_name: minidb-patroni-standby
+    hostname: patroni-standby
+    environment:
+      PATRONI_CONFIGURATION: |
+        scope: pg-cluster
+        name: patroni-standby
+        restapi:
+          listen: 0.0.0.0:8008
+          connect_address: patroni-standby:8008
+        etcd:
+          host: etcd:2379
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            synchronous_mode: false
+            postgresql:
+              use_pg_rewind: true
+              parameters:
+                wal_level: replica
+                max_wal_senders: 10
+                hot_standby: on
+        postgresql:
+          listen: 0.0.0.0:5432
+          connect_address: patroni-standby:5432
+          data_dir: /var/lib/postgresql/data
+          bin_dir: /usr/lib/postgresql/16/bin
+          authentication:
+            replication:
+              username: replicator
+              password: repl_pass
+            superuser:
+              username: postgres
+              password: pg_pass
+          pg_hba:
+            - host replication replicator 0.0.0.0/0 md5
+            - host all all 0.0.0.0/0 md5
+        tags:
+          nofailover: false
+          noloadbalance: false
+          clonefrom: false
+    ports:
+      - "8009:8008"
+      - "5441:5432"
+    volumes:
+      - patroni-standby-data:/var/lib/postgresql/data
+    depends_on:
+      etcd:
+        condition: service_healthy
+      patroni-primary:
+        condition: service_started
+    networks:
+      - minidb-ha
+
+  haproxy:
+    image: haproxy:2.8
+    container_name: minidb-haproxy
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5430:5432"
+      - "8404:8404"
+    depends_on:
+      patroni-primary:
+        condition: service_started
+      patroni-standby:
+        condition: service_started
+    networks:
+      - minidb-ha
+
+volumes:
+  etcd-data:
+  pg-primary-data:
+  pg-standby-data:
+  patroni-primary-data:
+  patroni-standby-data:
+
+networks:
+  minidb-ha:
+    driver: bridge
