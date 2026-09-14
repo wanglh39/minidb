@@ -67,12 +67,11 @@ ctest --test-dir build --output-on-failure
 
 ## 文档站
 
-在线文档：[GitHub Pages 链接（待部署）]
+在线文档：**https://wanglh39.github.io/minidb/**
 
 本地预览文档：
 
 ```bash
-cd docs
 pip install mkdocs-material
 mkdocs serve
 ```
