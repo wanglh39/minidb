@@ -22,6 +22,18 @@ SELECT * FROM orders WHERE customer_id = 42;
 
 因此，**读懂执行计划、识别反模式、手动干预**是后端工程师的必备技能。
 
+### 调优能带来什么收益
+
+| 维度 | 调优前 | 调优后 | 收益 |
+|---|---|---|---|
+| 单查询延迟 | 2.3 秒 | 0.2 毫秒 | 11500× |
+| 数据库 CPU 占用 | 85% | 12% | 7× |
+| 并发吞吐量 | 50 QPS | 5000 QPS | 100× |
+| 服务器成本 | 4 台 | 1 台 | 75% 节省 |
+| 用户响应时间 P99 | 3.5 秒 | 80 毫秒 | 44× |
+
+> **新手提示**：调优不是"玄学"，而是一套可学习、可复现、可量化方法。本章会带你从读懂 EXPLAIN 开始，逐步建立调优能力。
+
 ---
 
 ## EXPLAIN 详解
@@ -62,6 +74,28 @@ EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 42;
 
 > **关键**：`EXPLAIN` 的 `rows` 是估算值，`EXPLAIN ANALYZE` 的 `rows` 是实际值。两者差距大说明统计信息不准。
 
+#### cost 的两个数字：启动代价与总代价
+
+`cost=0.42..8.44` 中两个数字含义不同，新手常混淆：
+
+| 数字 | 名称 | 含义 | 何时重要 |
+|---|---|---|---|
+| 第一个（0.42） | **启动代价** | 产生第一行所需的代价 | 子查询、LIMIT、 EXISTS 关心 |
+| 第二个（8.44） | **总代价** | 产生所有行所需的代价 | 普通查询关心 |
+
+```sql
+-- 启动代价小的计划在 LIMIT 下更优
+EXPLAIN SELECT * FROM huge_table ORDER BY unindexed_col LIMIT 1;
+-- Sort  (cost=1000000.00..1000000.01 rows=1 ...)
+--   启动代价 1000000：必须全部排序才能输出第一行
+
+-- 对比：有索引时
+EXPLAIN SELECT * FROM huge_table ORDER BY indexed_col LIMIT 1;
+-- Limit  (cost=0.42..0.44 rows=1 ...)
+--   Index Scan using idx on huge_table  (cost=0.42..8.44 ...)
+--   启动代价 0.42：索引第一行即可输出
+```
+
 #### EXPLAIN 的详细选项
 
 ```sql
@@ -82,6 +116,84 @@ SELECT * FROM orders WHERE customer_id = 42;
 | `WAL` | 显示 WAL 记录数（需配合 ANALYZE） |
 | `TIMING` | 关闭可加速 ANALYZE（`TIMING OFF`） |
 | `FORMAT` | TEXT / JSON / YAML / XML |
+
+#### EXPLAIN vs EXPLAIN ANALYZE vs EXPLAIN ANALYZE BUFFERS
+
+三者层次递进，新手应理解差异：
+
+| 命令 | 是否执行 | 显示内容 | 适用场景 | 风险 |
+|---|---|---|---|---|
+| `EXPLAIN` | 否 | 估算代价 + 计划树 | 日常查看计划 | 无（不执行） |
+| `EXPLAIN ANALYZE` | 是 | 估算 + 实测 + 耗时 | 验证估算准确性 | 会执行（UPDATE/DELETE 危险） |
+| `EXPLAIN (ANALYZE, BUFFERS)` | 是 | 上述 + 缓冲命中 | 调优 IO | 同上 |
+| `EXPLAIN (ANALYZE, BUFFERS, WAL)` | 是 | 上述 + WAL 量 | 调优写负载 | 同上 |
+
+```sql
+-- EXPLAIN ANALYZE BUFFERS 输出示例
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM orders WHERE customer_id = 42;
+
+--  Index Scan using idx_orders_customer on orders  (cost=0.42..8.44 rows=1 width=74)
+--    (actual time=0.015..0.016 rows=1 loops=1)
+--    Index Cond: (customer_id = 42)
+--    Buffers: shared hit=4 read=1       ← 命中 4 页，从磁盘读 1 页
+--  Planning Time: 0.083 ms
+--  Execution Time: 0.021 ms
+```
+
+**Buffers 字段解读**：
+
+| 字段 | 含义 | 调优意义 |
+|---|---|---|
+| `shared hit` | 共享缓冲池命中页数 | 越高越好（无需磁盘 IO） |
+| `shared read` | 从磁盘读入的页数 | 越高越差（需磁盘 IO） |
+| `shared dirtied` | 修改的页数 | 写负载指标 |
+| `shared written` | 写回磁盘的页数 | 检查点压力 |
+| `temp read` | 临时文件读页数 | Sort/Hash 溢出磁盘 |
+| `temp written` | 临时文件写页数 | 同上 |
+
+> **新手提示**：`shared read` 高说明缓冲池不够或查询扫描太多数据；`temp read/written` 出现说明 Sort 或 Hash 溢出磁盘，需增大 `work_mem`。
+
+#### 如何系统阅读执行计划
+
+执行计划是一棵**树**，阅读顺序：
+
+1. **从最里层（缩进最深）开始**：那是先执行的叶子节点
+2. **自底向上**：每个节点消费子节点的输出
+3. **关注 cost、rows、actual time**：估算与实测对比
+4. **找异常节点**：cost 远高于其他节点、rows 估算与实测差距大、Sort 溢出磁盘
+
+```sql
+EXPLAIN ANALYZE
+SELECT c.name, count(*) AS cnt
+FROM customers c JOIN orders o ON c.id = o.customer_id
+WHERE o.status = 'shipped'
+GROUP BY c.name
+ORDER BY cnt DESC LIMIT 10;
+
+--  Limit  (cost=1000.00..1000.10 rows=10 ...) (actual time=15.2..15.3 rows=10 loops=1)
+--    -> Sort  (cost=1000.00..1050.00 rows=1000 ...) (actual time=15.2..15.3 rows=10 loops=1)
+--         Sort Key: count(*) DESC
+--         Sort Method: top-N heapsort  Memory: 25kB
+--         -> HashAggregate  (cost=800.00..900.00 rows=1000 ...) (actual time=12.0..14.0 rows=1000 loops=1)
+--              Group Key: c.name
+--              -> Hash Join  (cost=100.00..700.00 rows=10000 ...) (actual time=2.0..10.0 rows=10000 loops=1)
+--                   Hash Cond: (o.customer_id = c.id)
+--                   -> Seq Scan on orders o  (cost=0.00..400.00 rows=10000 ...) (actual time=0.1..5.0 rows=10000 loops=1)
+--                        Filter: (status = 'shipped')
+--                   -> Hash  (cost=50.00..50.00 rows=1000 ...) (actual time=1.0..1.0 rows=1000 loops=1)
+--                        -> Seq Scan on customers c  (cost=0.00..50.00 rows=1000 ...) (actual time=0.1..0.8 rows=1000 loops=1)
+```
+
+**逐层解读**：
+
+| 层 | 节点 | 作用 | 实测耗时 |
+|---|---|---|---|
+| 1（最里） | Seq Scan customers | 扫描客户表 1000 行 | 0.1..0.8 ms |
+| 1 | Seq Scan orders + Filter | 扫描订单表，过滤 shipped | 0.1..5.0 ms |
+| 2 | Hash + Hash Join | 构建哈希表 + 探测连接 | 2.0..10.0 ms |
+| 3 | HashAggregate | 按 c.name 分组计数 | 12.0..14.0 ms |
+| 4 | Sort | 按 cnt 降序排序 | 15.2..15.3 ms |
+| 5（最外） | Limit | 取前 10 行 | 15.2..15.3 ms |
 
 ### SQLite：EXPLAIN 与 EXPLAIN QUERY PLAN
 
@@ -177,26 +289,78 @@ EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42;
 | **Tid Scan** | `WHERE ctid = '(0,1)'` | 极低 | 直接按物理位置取 |
 | **Sample Scan** | `TABLESAMPLE` | 按采样率 | 用于统计采样 |
 
+#### Seq Scan（顺序扫描）详解
+
 ```sql
--- Seq Scan
+-- Seq Scan：从头到尾扫描整张表
 EXPLAIN SELECT * FROM large_table WHERE non_indexed_col = 1;
 -- Seq Scan on large_table  (cost=0.00..188346.00 rows=1 width=100)
+--   Filter: (non_indexed_col = 1)
+```
 
--- Index Scan
+**何时使用**：
+- 查询列无索引
+- 表很小（通常 < 1000 页）时全表扫描比索引快
+- 选择度高（返回 > 20% 行）时全表扫描比索引回表快
+
+**代价估算**：
+- 顺序读 IO 代价低（`seq_page_cost = 1.0`）
+- 适合大范围扫描，不适合点查
+
+#### Index Scan（索引扫描）详解
+
+```sql
+-- Index Scan：通过索引定位，再回表取完整行
 EXPLAIN SELECT * FROM large_table WHERE indexed_col = 1;
 -- Index Scan using idx on large_table  (cost=0.42..8.44 rows=1 width=100)
+--   Index Cond: (indexed_col = 1)
+```
 
--- Index Only Scan（覆盖索引）
+**何时使用**：
+- 查询列有索引
+- 选择度低（返回少量行）
+- 代价低于 Seq Scan
+
+**回表代价**：随机 IO（`random_page_cost = 4.0`，默认是 seq 的 4 倍）
+
+#### Index Only Scan（只索引扫描）详解
+
+```sql
+-- Index Only Scan：索引包含所有查询列，无需回表
 EXPLAIN SELECT indexed_col FROM large_table WHERE indexed_col = 1;
 -- Index Only Scan using idx on large_table  (cost=0.42..4.44 rows=1 width=4)
+--   Index Cond: (indexed_col = 1)
+--   Heap Fetches: 0          ← 0 表示完全无需回表
+```
 
--- Bitmap Scan（多条件）
+**条件**：查询列全部在索引中（覆盖索引）+ Visibility Map 标记页可见
+
+#### Bitmap Scan（位图扫描）详解
+
+```sql
+-- Bitmap Scan：多个索引条件组合
 EXPLAIN SELECT * FROM large_table WHERE col_a = 1 AND col_b = 2;
 -- Bitmap Heap Scan on large_table
 --   -> Bitmap And
 --        -> Bitmap Index Scan on idx_a
 --        -> Bitmap Index Scan on idx_b
+
+-- OR 条件
+EXPLAIN SELECT * FROM large_table WHERE col_a = 1 OR col_b = 2;
+-- Bitmap Heap Scan on large_table
+--   -> Bitmap Or
+--        -> Bitmap Index Scan on idx_a
+--        -> Bitmap Index Scan on idx_b
 ```
+
+**与 Index Scan 区别**：
+
+| 维度 | Index Scan | Bitmap Scan |
+|---|---|---|
+| IO 模式 | 随机 IO（每行一次） | 先收集位图，再批量取页 |
+| 适合 | 返回少量行 | 返回中等数量行 |
+| 多索引 | 不能 | 可以（Bitmap And/Or） |
+| 排序 | 保持索引顺序 | 不保证顺序 |
 
 ### Join 节点
 
@@ -208,13 +372,27 @@ EXPLAIN SELECT * FROM large_table WHERE col_a = 1 AND col_b = 2;
 
 > R = 外表行数，S = 内表行数
 
+#### Nested Loop Join 详解
+
 ```sql
 -- Nested Loop（外表小，内表有索引）
 EXPLAIN SELECT * FROM small_table s JOIN large_table l ON s.id = l.small_id;
 -- Nested Loop
 --   -> Seq Scan on small_table s
 --   -> Index Scan using idx on large_table l  (Index Cond: small_id = s.id)
+```
 
+**执行逻辑**：对外表每一行，扫描内表找匹配。内表有索引时退化为索引查找。
+
+**适合场景**：
+- 外表很小（< 1000 行）
+- 内表有索引
+- 非等值连接（`<`, `>`, `BETWEEN`）
+- 结果集小
+
+#### Hash Join 详解
+
+```sql
 -- Hash Join（等值连接，内表可放内存）
 EXPLAIN SELECT * FROM orders o JOIN customers c ON o.customer_id = c.id;
 -- Hash Join
@@ -222,7 +400,21 @@ EXPLAIN SELECT * FROM orders o JOIN customers c ON o.customer_id = c.id;
 --   -> Seq Scan on orders o
 --   -> Hash
 --        -> Seq Scan on customers c
+```
 
+**执行逻辑**：
+1. **Build 阶段**：扫描内表，构建哈希表（key = 连接键）
+2. **Probe 阶段**：扫描外表，对每行用连接键查哈希表
+
+**适合场景**：
+- 等值连接
+- 内表可放入 `work_mem`
+- 大表 join 大表
+- 无索引或索引代价高
+
+#### Merge Join 详解
+
+```sql
 -- Merge Join（两侧有序）
 EXPLAIN SELECT * FROM a JOIN b ON a.id = b.id;
 -- Merge Join
@@ -230,6 +422,13 @@ EXPLAIN SELECT * FROM a JOIN b ON a.id = b.id;
 --   -> Index Scan using a_pkey on a
 --   -> Index Scan using b_pkey on b
 ```
+
+**执行逻辑**：两侧已按连接键排序，双指针同步前进匹配。
+
+**适合场景**：
+- 等值连接
+- 两侧已排序（如都有索引）
+- 内存受限（无需构建哈希表）
 
 ### 其他常见节点
 
@@ -249,25 +448,72 @@ EXPLAIN SELECT * FROM a JOIN b ON a.id = b.id;
 | **Subquery Scan** | 子查询输出 | 子查询作为表 |
 | **Result** | 常量输出 | `SELECT 1` |
 
+#### Sort 节点详解
+
 ```sql
 -- Sort + Limit
 EXPLAIN SELECT * FROM orders ORDER BY amount DESC LIMIT 10;
 -- Limit
 --   -> Sort  (Sort Key: amount DESC)
 --        -> Seq Scan on orders
+```
 
--- HashAggregate
+**Sort Method 种类**：
+
+| 方法 | 说明 | 触发条件 |
+|---|---|---|
+| `quicksort` | 内存快速排序 | 数据量 < work_mem |
+| `top-N heapsort` | 堆排序（只保留前 N） | Sort + Limit 且数据量适中 |
+| `external merge` | 外部归并排序（磁盘） | 数据量 > work_mem |
+
+#### Aggregate 节点详解
+
+```sql
+-- HashAggregate（默认，内存中分组）
 EXPLAIN SELECT customer_id, count(*) FROM orders GROUP BY customer_id;
 -- HashAggregate
 --   Group Key: customer_id
 --   -> Seq Scan on orders
 
+-- GroupAggregate（需排序时）
+EXPLAIN SELECT customer_id, count(*) FROM orders GROUP BY customer_id ORDER BY customer_id;
+-- GroupAggregate
+--   Group Key: customer_id
+--   -> Sort
+--        -> Seq Scan on orders
+```
+
+| 节点 | 内存 | 适合 |
+|---|---|---|
+| HashAggregate | O(分组数) | 分组数适中、无需排序输出 |
+| GroupAggregate | O(1) + Sort | 分组数多、需排序输出、内存不足 |
+
+#### Limit 节点详解
+
+```sql
+-- Limit：截断输出
+EXPLAIN SELECT * FROM orders LIMIT 10;
+-- Limit
+--   -> Seq Scan on orders
+
+-- 配合 Sort 可用 top-N heapsort 优化
+EXPLAIN SELECT * FROM orders ORDER BY amount DESC LIMIT 10;
+-- Limit
+--   -> Sort  (Sort Key: amount DESC)
+--        Sort Method: top-N heapsort  Memory: 25kB   ← 只保留前 10 行
+--        -> Seq Scan on orders
+```
+
+#### 并行查询节点
+
+```sql
 -- 并行查询（PG）
 EXPLAIN SELECT count(*) FROM large_table;
 -- Finalize Aggregate
 --   -> Gather
 --        -> Partial Aggregate
 --             -> Parallel Seq Scan on large_table
+--                  Workers Planned: 4
 ```
 
 ### Sort 节点的代价
@@ -298,6 +544,26 @@ EXPLAIN ANALYZE SELECT * FROM large_table ORDER BY random_col;
 
 优化器靠统计信息估算每个操作的代价和输出行数。统计信息过期是计划变差的首要原因。
 
+### 为什么统计信息重要
+
+优化器选择计划的依据是**代价估算**，而代价估算依赖统计信息：
+
+```
+代价 = IO 代价 + CPU 代价
+IO 代价 = 页数 × seq_page_cost（或 random_page_cost）
+CPU 代价 = 行数 × cpu_tuple_cost
+行数 = 表行数 × 选择度
+选择度 = f(统计信息, 查询条件)
+```
+
+**没有统计信息，优化器只能瞎猜**：
+
+| 情况 | 有统计信息 | 无统计信息 |
+|---|---|---|
+| `WHERE status = 'shipped'` | 知道 shipped 占 40%，估算 40 万行 | 假设 5% 或 1/不同值数 |
+| `WHERE amount > 500` | 直方图估算 30% | 假设 33%（范围条件默认） |
+| `GROUP BY customer_id` | 知道有 1 万不同值，输出 1 万行 | 假设 sqrt(N) 或 N/10 |
+
 ### PostgreSQL：pg_statistic
 
 ```sql
@@ -310,6 +576,19 @@ FROM pg_statistic s JOIN pg_attribute a
   ON a.attrelid = s.starelid AND a.attnum = s.staattnum
 WHERE starelid = 'orders'::regclass;
 ```
+
+**pg_statistic 表结构**：
+
+| 字段 | 含义 | 示例值 |
+|---|---|---|
+| `starelid` | 表 OID | 16384 |
+| `staattnum` | 列号 | 3 |
+| `stainherit` | 是否含继承表 | false |
+| `stanullfrac` | NULL 比例 | 0.0 |
+| `stakind1..5` | 统计类型（MCV/直方图/相关性等） | 1, 2, 3 |
+| `staop1..5` | 运算符 OID | 96（=） |
+| `stavalues1..5` | 统计值（MCV/直方图边界） | {shipped,pending,...} |
+| `stanumbers1..5` | 统计数值（频率/相关性） | {0.4,0.3,...} |
 
 **最关键的统计信息：MCV（Most Common Values，最常见值）和直方图**：
 
@@ -328,6 +607,7 @@ SELECT * FROM pg_stats WHERE tablename = 'orders' AND attname = 'status';
 | `most_common_vals` | 最常见值 | 估算等值条件选择度 |
 | `most_common_freqs` | 最常见值频率 | 配合 MCV |
 | `histogram_bounds` | 直方图边界 | 估算范围条件选择度 |
+| `correlation` | 物理排序相关性 | 估算索引扫描的随机 IO 代价 |
 
 **选择度估算示例**：
 
@@ -339,6 +619,10 @@ SELECT * FROM pg_stats WHERE tablename = 'orders' AND attname = 'status';
 -- amount > 500 的选择度
 -- 从直方图估算：500 落在第 7 个桶（共 10 桶）
 -- 估算行数 = 表行数 × (10 - 7) / 10 = 1000000 × 0.3 = 300000
+
+-- status = 'unknown'（不在 MCV 中）
+-- 选择度 = (1 - sum(MCV 频率)) / (不同值数 - MCV 数量)
+--        = (1 - 1.0) / (4 - 4) → 退化估算
 ```
 
 ### ANALYZE 命令
@@ -356,6 +640,33 @@ SHOW default_statistics_target;    -- 默认 100，范围 1-10000
 -- 提高统计精度（更精确但更慢）
 ALTER TABLE orders ALTER COLUMN customer_id SET STATISTICS 1000;
 ANALYZE orders(customer_id);
+```
+
+#### ANALYZE 的工作原理
+
+```
+1. 采样：随机选取表中的部分行（默认 30000 × statistics_target 行）
+2. 计算统计量：
+   - null_frac：NULL 比例
+   - n_distinct：不同值数量（用 HyperLogLog 等算法估算）
+   - MCV：出现频率最高的值（默认前 100 个）
+   - 直方图：将排序后的值分到等频桶中（默认 100 桶）
+   - correlation：物理顺序与逻辑顺序的相关性
+3. 写入 pg_statistic
+```
+
+**为什么采样而非全表扫描**：大表全表扫描太慢，采样 30000 行已能得到足够精确的统计。代价是统计可能略有偏差。
+
+#### autovacuum 自动收集
+
+```sql
+-- PG 默认开启 autovacuum，自动 ANALYZE
+SHOW autovacuum;                          -- on
+SHOW autovacuum_analyze_scale_factor;     -- 0.1（10% 变化触发）
+SHOW autovacuum_analyze_threshold;        -- 50
+
+-- 触发条件：变更行数 > threshold + scale_factor × 表行数
+-- 例：100 万行表，变更 > 50 + 0.1 × 1000000 = 100050 行时自动 ANALYZE
 ```
 
 ### SQLite：sqlite_stat1
@@ -398,6 +709,15 @@ ANALYZE large_table;  -- 重新收集统计
 -- 优化器现在知道是大表，改用 Hash Join
 ```
 
+**过期统计信息的典型症状**：
+
+| 症状 | 原因 | 修复 |
+|---|---|---|
+| 估算 rows=10，实际 rows=100000 | 统计信息记录旧数据量 | `ANALYZE` |
+| 突然从 Hash Join 退化为 Nested Loop | 优化器以为表小 | `ANALYZE` |
+| 索引未被使用 | 优化器估算选择度高 | `ANALYZE` + 检查 `SET STATISTICS` |
+| 同一查询计划忽好忽差 | autovacuum 未及时触发 | 调小 `analyze_scale_factor` |
+
 ---
 
 ## 慢查询识别
@@ -421,6 +741,29 @@ ORDER BY total_exec_time DESC
 LIMIT 10;
 ```
 
+**pg_stat_statements 关键字段**：
+
+| 字段 | 含义 | 用途 |
+|---|---|---|
+| `query` | SQL 文本（已规范化） | 识别查询 |
+| `calls` | 执行次数 | 找高频查询 |
+| `total_exec_time` | 总执行时间 | 找累计耗时最多 |
+| `mean_exec_time` | 平均执行时间 | 找单次最慢 |
+| `rows` | 返回行数 | 检查是否返回过多行 |
+| `shared_blks_read` | 磁盘读块数 | 找 IO 重查询 |
+| `temp_blks_written` | 临时文件写块数 | 找 Sort/Hash 溢出 |
+
+```sql
+-- 综合查询：找 IO 重 + 慢的查询
+SELECT query, calls, mean_exec_time, shared_blks_read, temp_blks_written
+FROM pg_stat_statements
+ORDER BY shared_blks_read + temp_blks_written * 10 DESC
+LIMIT 20;
+
+-- 重置统计（调优前清零）
+SELECT pg_stat_statements_reset();
+```
+
 ### PostgreSQL：慢查询日志
 
 ```sql
@@ -431,6 +774,16 @@ SELECT pg_reload_conf();
 -- 日志中会出现：
 -- LOG: duration: 234.567 ms  statement: SELECT * FROM orders WHERE ...
 ```
+
+**慢查询日志相关参数**：
+
+| 参数 | 作用 | 推荐值 |
+|---|---|---|
+| `log_min_duration_statement` | 记录超过 N 毫秒的查询 | 100（生产） |
+| `log_line_prefix` | 日志前缀格式 | 含时间、PID、会话 ID |
+| `log_statement` | 记录所有查询（'all'） | 'none'（生产） |
+| `log_connections` | 记录连接 | on |
+| `log_disconnections` | 记录断开 | on |
 
 ### SQLite：计时
 
@@ -450,6 +803,26 @@ t0 = time.perf_counter()
 rows = conn.execute("SELECT * FROM orders WHERE customer_id = 42").fetchall()
 t1 = time.perf_counter()
 print(f"耗时: {(t1-t0)*1000:.2f} ms, 行数: {len(rows)}")
+```
+
+### 慢查询识别工具推荐
+
+| 工具 | 数据库 | 特点 | 适用场景 |
+|---|---|---|---|
+| `pg_stat_statements` | PostgreSQL | 累计统计、低开销 | 生产持续监控 |
+| 慢查询日志 | PostgreSQL / MySQL | 完整 SQL 文本 | 事后分析 |
+| `pgBadger` | PostgreSQL | 日志分析生成报告 | 定期审计 |
+| `Datadog / Prometheus` | 全部 | 可视化 + 告警 | 在线监控 |
+| `EXPLAIN` | 全部 | 单查询计划分析 | 开发调试 |
+| `.timer on` | SQLite | 简单计时 | 本地调试 |
+| `pg_stat_activity` | PostgreSQL | 实时正在执行的查询 | 找当前慢查询 |
+
+```sql
+-- 查看当前正在执行的查询（PG）
+SELECT pid, state, query_start, now() - query_start AS duration, query
+FROM pg_stat_activity
+WHERE state = 'active' AND now() - query_start > interval '1 second'
+ORDER BY duration DESC;
 ```
 
 ---
@@ -587,6 +960,54 @@ EXPLAIN SELECT * FROM a JOIN b ON a.id = b.aid JOIN c ON b.id = c.bid;
 3. **有索引的表做内表**：Nested Loop 内表用索引加速
 4. **等值连接优先 Hash/Merge**：大表之间用 Hash 或 Merge
 
+### 驱动表选择
+
+**驱动表**（外表）是 Nested Loop 中先扫描的表。选择原则：
+
+| 原则 | 说明 | 示例 |
+|---|---|---|
+| 小表驱动大表 | 减少外层循环次数 | 10 行表驱动 100 万行表 |
+| 过滤后行数少的做驱动 | 看过滤后而非原始行数 | `WHERE` 后剩 100 行的做外表 |
+| 有索引的被驱动 | 内表用索引加速 | 内表连接列建索引 |
+
+```sql
+-- 反例：大表驱动小表
+EXPLAIN SELECT * FROM big_fact b JOIN small_dim s ON b.dim_id = s.id;
+-- 如果优化器选错：Nested Loop
+--   -> Seq Scan on big_fact b (1000000 行)        ← 外表 100 万次循环
+--   -> Index Scan on small_dim s                  ← 每次查小表
+
+-- 正例：小表驱动大表
+EXPLAIN SELECT * FROM small_dim s JOIN big_fact b ON s.id = b.dim_id;
+-- Nested Loop
+--   -> Seq Scan on small_dim s (100 行)           ← 外表 100 次循环
+--   -> Index Scan on big_fact b                   ← 每次用索引查大表
+```
+
+```python
+# Python 演示驱动表选择的影响
+import sqlite3, time
+
+conn = sqlite3.connect(':memory:')
+conn.execute("CREATE TABLE small(id INTEGER PRIMARY KEY, v)")
+conn.execute("CREATE TABLE big(id INTEGER PRIMARY KEY, small_id INTEGER)")
+conn.execute("CREATE INDEX idx_big_small ON big(small_id)")
+conn.executemany("INSERT INTO small VALUES(?,?)", [(i, f'v{i}') for i in range(100)])
+conn.executemany("INSERT INTO big VALUES(?,?)", [(i, i % 100) for i in range(1000000)])
+
+# 小驱动大（正确）
+t0 = time.perf_counter()
+conn.execute("SELECT COUNT(*) FROM small s JOIN big b ON s.id = b.small_id").fetchone()
+t1 = time.perf_counter()
+print(f"小驱动大: {(t1-t0)*1000:.1f} ms")
+
+# 大驱动小（错误，但优化器会自动重排）
+t0 = time.perf_counter()
+conn.execute("SELECT COUNT(*) FROM big b JOIN small s ON s.id = b.small_id").fetchone()
+t1 = time.perf_counter()
+print(f"大驱动小: {(t1-t0)*1000:.1f} ms")
+```
+
 ---
 
 ## 子查询优化
@@ -651,6 +1072,14 @@ GROUP BY c.id, c.name;
 --   Join：一次扫描 orders + Hash 聚合 → 2 次扫描
 ```
 
+**性能对比数据**（10000 客户，100 万订单）：
+
+| 写法 | 执行次数 | 耗时 | 说明 |
+|---|---|---|---|
+| 相关子查询 | 10001 次 | 2.3 秒 | 每行一次子查询 |
+| Join + Group | 1 次 | 0.15 秒 | 一次扫描 + 聚合 |
+| 差距 | 10000× | 15× | |
+
 ### 优化技术 3：EXISTS vs IN vs JOIN
 
 ```sql
@@ -663,6 +1092,23 @@ SELECT c.* FROM customers c JOIN (SELECT DISTINCT customer_id FROM orders) o ON 
 -- 但现代优化器通常能将三者优化为相同计划
 EXPLAIN SELECT * FROM customers c WHERE c.id IN (SELECT customer_id FROM orders);
 -- Hash Join  (Hash Cond: ...)  ← 优化器已转为 Join
+```
+
+**EXISTS vs IN 选择建议**：
+
+| 场景 | 推荐 | 原因 |
+|---|---|---|
+| 外表大，子查询结果小 | IN | 子查询结果集小，构建哈希表快 |
+| 外表小，子查询结果大 | EXISTS | 外表小，每行 EXISTS 检查快 |
+| 子查询有索引 | 都可以 | 优化器会自动选最优 |
+| NULL 值处理 | EXISTS | IN 遇到 NULL 有语义陷阱 |
+
+```sql
+-- IN 的 NULL 陷阱
+SELECT * FROM t WHERE x IN (SELECT y FROM t2);
+-- 如果 t2.y 包含 NULL，且 x 不匹配任何非 NULL 值
+-- 结果是 NULL（未知），不是 false → 行不返回
+-- 这与直觉不符，EXISTS 无此问题
 ```
 
 ### 优化技术 4：避免标量子查询的 N+1
@@ -680,6 +1126,224 @@ SELECT c.*, o.* FROM customers c LEFT JOIN orders o ON c.customer_id = c.id;
 
 ---
 
+## 5 个慢查询案例
+
+以下 5 个案例覆盖最常见的慢查询类型，每个案例包含问题描述、EXPLAIN 分析、解决方案和优化效果。
+
+### 案例 1：缺失索引导致全表扫描
+
+**问题描述**：订单查询接口 P99 延迟 2.3 秒，用户投诉严重。
+
+```sql
+-- 原始查询
+SELECT id, order_date, amount, status FROM orders WHERE customer_id = 42;
+
+-- EXPLAIN 分析
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42;
+-- id  parent  notused  detail
+-- 2   0       0        SCAN orders           ← 全表扫描！
+```
+
+**问题定位**：`SCAN` 表示全表扫描，100 万行表逐行检查 `customer_id = 42`。
+
+**解决方案**：
+
+```sql
+-- 加索引
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+
+-- 再次 EXPLAIN
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42;
+-- id  parent  notused  detail
+-- 3   0       62       SEARCH orders USING INDEX idx_orders_customer (customer_id=?)
+-- 现在 → 索引查找
+```
+
+**优化效果**：
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 扫描行数 | 1000000 | 12 | 83333× |
+| 耗时 | 2300 ms | 0.2 ms | 11500× |
+| IO 读取 | 全表 12000 页 | 索引 3 页 + 数据 12 页 | 800× |
+
+### 案例 2：N+1 查询问题
+
+**问题描述**：列表页加载 100 个客户及其订单数，耗时 3.5 秒。
+
+```python
+# 原始代码（N+1）
+customers = conn.execute("SELECT id, name FROM customers LIMIT 100").fetchall()  # 1 次
+result = []
+for c in customers:
+    cnt = conn.execute("SELECT count(*) FROM orders WHERE customer_id = ?", (c[0],)).fetchone()[0]  # 100 次
+    result.append((c, cnt))
+# 总共 101 次查询，3.5 秒
+```
+
+**EXPLAIN 分析**：每次子查询都用索引，单次 30 ms，但 100 次累计 3000 ms（含往返开销）。
+
+**解决方案**：
+
+```python
+# 优化：一次 Join 查询
+result = conn.execute("""
+    SELECT c.id, c.name, count(o.id) AS order_count
+    FROM customers c LEFT JOIN orders o ON o.customer_id = c.id
+    GROUP BY c.id, c.name
+    LIMIT 100
+""").fetchall()
+# 1 次查询，0.15 秒
+```
+
+**优化效果**：
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 查询次数 | 101 | 1 | 101× |
+| 耗时 | 3500 ms | 150 ms | 23× |
+| 网络往返 | 101 次 | 1 次 | 101× |
+
+### 案例 3：OR 条件导致索引失效
+
+**问题描述**：复合条件查询耗时 1.8 秒，两个列分别有索引但未生效。
+
+```sql
+-- 原始查询
+SELECT * FROM orders WHERE customer_id = 42 OR status = 'pending';
+
+-- EXPLAIN 分析（SQLite）
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42 OR status = 'pending';
+-- SCAN orders           ← 全表扫描，OR 导致无法用单一索引
+```
+
+**问题定位**：OR 条件需要同时满足两侧，单一索引无法覆盖，退化为全表扫描。
+
+**解决方案**：
+
+```sql
+-- 方案 1：UNION ALL（各自用索引）
+SELECT * FROM orders WHERE customer_id = 42
+UNION
+SELECT * FROM orders WHERE status = 'pending' AND customer_id != 42;
+
+-- 方案 2：建复合索引（如果 OR 模式固定）
+CREATE INDEX idx_orders_cust_status ON orders(customer_id, status);
+
+-- 方案 3（PG）：Bitmap Or 自动选择
+EXPLAIN SELECT * FROM orders WHERE customer_id = 42 OR status = 'pending';
+-- Bitmap Heap Scan on orders
+--   -> Bitmap Or
+--        -> Bitmap Index Scan on idx_customer
+--        -> Bitmap Index Scan on idx_status
+```
+
+**优化效果**（SQLite + UNION）：
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 扫描方式 | 全表扫描 | 两次索引扫描 | - |
+| 扫描行数 | 1000000 | 12 + 5000 | 200× |
+| 耗时 | 1800 ms | 12 ms | 150× |
+
+### 案例 4：统计信息过期导致计划退化
+
+**问题描述**：订单表查询突然变慢，从 50 ms 飙升到 3 秒，无代码变更。
+
+```sql
+-- 原始查询
+SELECT c.name, o.* FROM orders o JOIN customers c ON o.customer_id = c.id
+WHERE o.status = 'shipped' LIMIT 100;
+
+-- EXPLAIN ANALYZE 分析（PG）
+EXPLAIN ANALYZE SELECT c.name, o.* FROM orders o JOIN customers c ON o.customer_id = c.id
+WHERE o.status = 'shipped' LIMIT 100;
+
+-- Nested Loop  (cost=0.86..12340.00 rows=100 ...) (actual time=0.5..3000.0 rows=100 loops=1)
+--   -> Seq Scan on orders o  (cost=0.00..5000.00 rows=500 ...) (actual time=0.1..2500.0 rows=400000 loops=1)
+--        Filter: (status = 'shipped')
+--   -> Index Scan on customers c  (Index Cond: id = o.customer_id)
+```
+
+**问题定位**：
+- 优化器估算 `status = 'shipped'` 返回 500 行（统计信息记录旧数据）
+- 实际返回 400000 行（数据已增长但未 ANALYZE）
+- 优化器选了 Nested Loop（以为小结果集），实际变成 400000 次内表查找
+
+**解决方案**：
+
+```sql
+-- 重新收集统计信息
+ANALYZE orders;
+
+-- 再次 EXPLAIN
+EXPLAIN ANALYZE SELECT c.name, o.* FROM orders o JOIN customers c ON o.customer_id = c.id
+WHERE o.status = 'shipped' LIMIT 100;
+
+-- Limit  (cost=1000.00..1050.00 rows=100 ...) (actual time=5.0..8.0 rows=100 loops=1)
+--   -> Hash Join  (cost=1000.00..50000.00 rows=400000 ...)
+--        Hash Cond: (o.customer_id = c.id)
+--        -> Seq Scan on orders o  (Filter: status = 'shipped')  (rows=400000)
+--        -> Hash  -> Seq Scan on customers c
+```
+
+**优化效果**：
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| Join 算法 | Nested Loop | Hash Join | - |
+| 估算 rows | 500 | 400000 | 准确 |
+| 耗时 | 3000 ms | 8 ms | 375× |
+
+**根因修复**：调小 autovacuum 触发阈值，避免再次过期。
+
+```sql
+ALTER TABLE orders SET (autovacuum_analyze_scale_factor = 0.02);  -- 2% 变化即触发
+```
+
+### 案例 5：深分页性能问题
+
+**问题描述**：管理后台分页到第 5 万页时，加载耗时 8 秒。
+
+```sql
+-- 原始查询（OFFSET 深分页）
+SELECT * FROM orders ORDER BY id LIMIT 20 OFFSET 1000000;
+
+-- EXPLAIN 分析
+EXPLAIN SELECT * FROM orders ORDER BY id LIMIT 20 OFFSET 1000000;
+-- Limit  (cost=... rows=20 ...)
+--   -> Seq Scan on orders         ← 需扫描 1000020 行，丢弃前 1000000 行
+```
+
+**问题定位**：OFFSET 必须扫描并丢弃前 N 行，N 越大越慢。
+
+**解决方案**：游标分页（keyset pagination）
+
+```sql
+-- 优化：记住上一页最后一个 id
+SELECT * FROM orders WHERE id > ? ORDER BY id LIMIT 20;
+-- 只需从 id 开始扫描 20 行
+
+-- Python 实现
+last_id = 0
+def get_next_page(last_id, page_size=20):
+    rows = conn.execute(
+        "SELECT * FROM orders WHERE id > ? ORDER BY id LIMIT ?",
+        (last_id, page_size)
+    ).fetchall()
+    return rows, rows[-1]['id'] if rows else last_id
+```
+
+**优化效果**：
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 扫描行数 | 1000020 | 20 | 50000× |
+| 耗时 | 8000 ms | 0.5 ms | 16000× |
+| 内存 | 排序 100 万行 | 无 | - |
+
+---
+
 ## 常见性能反模式
 
 ### 反模式 1：SELECT \*
@@ -693,6 +1357,15 @@ SELECT * FROM orders WHERE customer_id = 42;
 SELECT id, order_date, amount FROM orders WHERE customer_id = 42;
 -- 如果有 (customer_id, id, order_date, amount) 覆盖索引 → Index Only Scan
 ```
+
+**SELECT \* 的危害**：
+
+| 危害 | 说明 |
+|---|---|
+| 浪费 IO | 读取不需要的列（尤其大字段） |
+| 浪费网络 | 传输不需要的数据 |
+| 破坏覆盖索引 | 无法用 Index Only Scan |
+| 脆弱 | 表加列后应用可能出错 |
 
 ### 反模式 2：无索引的全表扫描
 
@@ -766,6 +1439,15 @@ SELECT * FROM orders WHERE DATE(order_time) = '2024-01-15';
 -- Index Scan using idx_order_date
 ```
 
+**常见函数包裹反模式**：
+
+| 反模式 | 修复 |
+|---|---|
+| `WHERE UPPER(name) = 'ABC'` | `WHERE name = 'ABC'`（建表达式索引或统一大小写） |
+| `WHERE col + 1 = 10` | `WHERE col = 9` |
+| `WHERE LEFT(name, 3) = 'abc'` | `WHERE name LIKE 'abc%'`（可用索引） |
+| `WHERE DATE(col) = '2024-01-15'` | `WHERE col >= '2024-01-15' AND col < '2024-01-16'` |
+
 ### 反模式 6：隐式类型转换导致索引失效
 
 ```sql
@@ -819,6 +1501,24 @@ page = conn.execute("SELECT * FROM orders WHERE id > ? ORDER BY id LIMIT 20", (l
 last_id = page[-1].id
 ```
 
+### 反模式 10：不必要的 ORDER BY
+
+```sql
+-- 反模式：排序后只取一行，但无 LIMIT 优化
+SELECT * FROM orders ORDER BY create_time DESC;
+-- 排序 100 万行，耗时 2 秒
+
+-- 如果只需要最新一行
+SELECT * FROM orders ORDER BY create_time DESC LIMIT 1;
+-- 配合 create_time 索引 → Index Scan 取第一行，0.1 ms
+
+-- 反模式：子查询中不必要的 ORDER BY
+SELECT * FROM (
+    SELECT * FROM orders ORDER BY create_time DESC   ← 子查询排序无意义
+) t WHERE t.status = 'shipped';
+-- 外层会重新处理，内层排序浪费
+```
+
 ---
 
 ## 与 miniDB 优化器对照
@@ -834,7 +1534,126 @@ last_id = page[-1].id
 | **索引选择** | 有索引就用 | 基于代价选择 | 基于代价选择 + Bitmap |
 | **并行** | 无 | 无（单线程） | 并行 Seq Scan / Join / Aggregate |
 
+**详细对比**：
+
+| 能力 | miniDB | SQLite | PostgreSQL | 说明 |
+|---|---|---|---|---|
+| 估算选择度 | 固定假设 | 1/不同值数 | MCV + 直方图 | PG 最精确 |
+| 倾斜数据处理 | ❌ | ❌ | ✅ | MCV 记录高频值 |
+| 范围条件估算 | ❌ | 简单 | 直方图 | PG 用直方图 |
+| 多列相关性 | ❌ | ❌ | ✅ | pg_statistic 多列统计 |
+| 子查询展开 | ❌ | 部分 | 完整 | PG 最强 |
+| Join 重排 | ❌ | ✅ | ✅ | miniDB 按书写顺序 |
+| 并行查询 | ❌ | ❌ | ✅ | PG 支持并行 |
+| 自适应索引 | ❌ | AUTOMATIC INDEX | ❌ | SQLite 特有 |
+
 > **核心差异**：miniDB 的优化器是教学版，只实现了启发式规则（"有索引就用索引"、"小表驱动大表"）和简单代价模型。真实数据库的优化器是工业级，统计信息丰富、Join 算法多样、子查询优化完整。理解 miniDB 的优化器是理解真实优化器的基础——核心思想一致：**用统计信息估算代价，选代价最小的计划**。
+
+---
+
+## 调优方法论
+
+### 系统化调优流程
+
+调优不是"凭感觉加索引"，而是一套系统流程：
+
+```
+1. 测量 → 2. 定位 → 3. 分析 → 4. 假设 → 5. 验证 → 6. 上线 → 7. 监控
+```
+
+| 步骤 | 动作 | 工具 | 产出 |
+|---|---|---|---|
+| 1. 测量 | 量化当前性能 | `.timer` / `EXPLAIN ANALYZE` | 基线耗时 |
+| 2. 定位 | 找到慢的节点 | `EXPLAIN` | 计划树 + 瓶颈节点 |
+| 3. 分析 | 理解为何慢 | 代价模型 + 统计信息 | 根因假设 |
+| 4. 假设 | 提出改进方案 | 索引 / 改写 SQL / 统计 | 候选方案 |
+| 5. 验证 | 测试方案效果 | `EXPLAIN ANALYZE` | 新耗时 |
+| 6. 上线 | 部署到生产 | 灰度发布 | 线上效果 |
+| 7. 监控 | 持续跟踪 | `pg_stat_statements` | 回归检测 |
+
+### 测量而非猜测
+
+**调优第一原则**：永远先测量，不要猜。
+
+```python
+# 反例：猜测"加索引会快"
+conn.execute("CREATE INDEX idx ON orders(customer_id)")  # 盲目加索引
+
+# 正例：先测量，再决策
+import time
+
+# 基线
+t0 = time.perf_counter()
+conn.execute("SELECT * FROM orders WHERE customer_id = 42").fetchall()
+t1 = time.perf_counter()
+print(f"基线: {(t1-t0)*1000:.1f} ms")
+
+# 看执行计划
+print(conn.execute("EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 42").fetchall())
+
+# 基于计划决定是否加索引
+# 如果已是 Index Scan，加索引无意义
+```
+
+### A/B 对比测试
+
+```python
+import sqlite3, time
+
+def benchmark(conn, query, n=100):
+    """运行 n 次取平均"""
+    times = []
+    for _ in range(n):
+        t0 = time.perf_counter()
+        conn.execute(query).fetchall()
+        t1 = time.perf_counter()
+        times.append((t1 - t0) * 1000)
+    return sum(times) / len(times), min(times), max(times)
+
+conn = sqlite3.connect('test.db')
+
+# 方案 A：原始查询
+query_a = "SELECT * FROM orders WHERE customer_id = 42"
+avg_a, min_a, max_a = benchmark(conn, query_a)
+print(f"方案A: avg={avg_a:.2f} ms, min={min_a:.2f}, max={max_a:.2f}")
+
+# 方案 B：优化后
+query_b = "SELECT id, amount FROM orders WHERE customer_id = 42"
+avg_b, min_b, max_b = benchmark(conn, query_b)
+print(f"方案B: avg={avg_b:.2f} ms, min={min_b:.2f}, max={max_b:.2f}")
+
+print(f"提升: {avg_a / avg_b:.1f}x")
+```
+
+### 调优优先级
+
+资源有限时，按以下优先级调优：
+
+| 优先级 | 优化项 | 收益 | 成本 |
+|---|---|---|---|
+| P0 | 加缺失索引 | 极高 | 极低 |
+| P0 | 修复 N+1 查询 | 极高 | 低 |
+| P1 | ANALYZE 过期统计 | 高 | 极低 |
+| P1 | 消除 SELECT * | 中 | 低 |
+| P2 | 改写子查询为 Join | 中 | 中 |
+| P2 | 修复 OR 反模式 | 中 | 中 |
+| P3 | 增大 work_mem | 中 | 中（内存） |
+| P3 | 深分页改游标 | 高（特定场景） | 中 |
+
+### 调优检查清单
+
+```markdown
+- [ ] 用 EXPLAIN 看了执行计划？
+- [ ] 确认没有 Seq Scan 在大表上？
+- [ ] 统计信息是最新的（已 ANALYZE）？
+- [ ] 没有 SELECT *？
+- [ ] 没有 N+1 查询？
+- [ ] 没有函数包裹索引列？
+- [ ] 没有隐式类型转换？
+- [ ] Join 顺序合理（小驱动大）？
+- [ ] 深分页用游标而非 OFFSET？
+- [ ] 用 EXPLAIN ANALYZE 验证了优化效果？
+```
 
 ---
 
