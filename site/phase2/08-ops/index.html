@@ -1,0 +1,3964 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="教学性项目：用 C 语言从字节级造一个迷你 RDBMS，再深入 SQLite/PostgreSQL 实战">
+      
+      
+      
+        <link rel="canonical" href="https://wanglh39.github.io/minidb/phase2/08-ops/">
+      
+      
+        <link rel="prev" href="../07-ha-scaling/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>章8 数据库运维 - miniDB — 从零造一个关系型数据库</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+SC:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans SC";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#8" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="miniDB — 从零造一个关系型数据库" class="md-header__button md-logo" aria-label="miniDB — 从零造一个关系型数据库" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            miniDB — 从零造一个关系型数据库
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              章8 数据库运维
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="切换到暗色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到暗色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="切换到亮色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到亮色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/wanglh39/minidb" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wanglh39/minidb
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  首页
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../blueprint/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  蓝图
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../phase1/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  阶段1 - 从零造数据库
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  阶段2 - 实际数据库使用
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="miniDB — 从零造一个关系型数据库" class="md-nav__button md-logo" aria-label="miniDB — 从零造一个关系型数据库" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    miniDB — 从零造一个关系型数据库
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/wanglh39/minidb" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wanglh39/minidb
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../blueprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    蓝图
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../phase1/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    阶段1 - 从零造数据库
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    阶段1 - 从零造数据库
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/00-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章0 项目基础设施
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/01-storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章1 存储基础
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/02-buffer-pool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章2 Buffer Pool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/03-btree/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章3 B+Tree 索引
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/04-heap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章4 堆表存储
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/05-wal-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章5 WAL 与崩溃恢复
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/06-txn-mvcc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章6 事务与并发控制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/07-sql-parser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章7 SQL 解析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/08-optimizer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章8 查询优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/09-executor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章9 执行引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/10-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章10 CLI与网络协议
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../phase1/11-integration-benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章11 集成与压测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    阶段2 - 实际数据库使用
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    阶段2 - 实际数据库使用
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-sqlite-deep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章1 SQLite 深入
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-postgresql-deep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章2 PostgreSQL 架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-index-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章3 索引策略实战
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-transaction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章4 事务与隔离级别
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-connection-pool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章5 连接池与后端集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-query-tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章6 查询性能调优
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-ha-scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章7 高可用与扩展
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章8 数据库运维
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    章8 数据库运维
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运维全景
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 备份策略
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 备份策略">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 备份方式对比
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-pg_dump" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 逻辑备份：pg_dump
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-pg_basebackup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 物理备份：pg_basebackup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-wal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 WAL 归档
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 备份保留策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#16-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6 Python 备份演示
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pitrpoint-in-time-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. PITR（Point-in-Time Recovery）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. PITR（Point-in-Time Recovery）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 PITR 原理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 恢复目标选项
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 完整 PITR 操作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 PITR 注意事项
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 监控指标
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 监控指标">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 关键指标清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 连接数监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 缓存命中率
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 锁等待检测
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 死元组监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 复制延迟监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-checkpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 Checkpoint 统计
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Python 监控脚本
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 容量规划
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 容量规划">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 表与索引大小
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 增长趋势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 容量预测
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 索引空间优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 表空间与分区规划
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 安全加固
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 安全加固">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-ssltls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 SSL/TLS 配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-pg_hbaconf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 pg_hba.conf 配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 角色权限
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 密码策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 数据加密
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 审计日志
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-rls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7 行级安全（RLS）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#58-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8 Python 安全检查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 常见故障与排查
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 常见故障与排查">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 故障速查表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 连接被拒排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 查询变慢排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 磁盘满排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5 复制延迟排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Runbook（操作手册）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Runbook（操作手册）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 日常维护清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 紧急操作清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-minidb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 与 miniDB 的对照
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 文件清单
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 习题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运维全景
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 备份策略
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 备份策略">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 备份方式对比
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-pg_dump" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 逻辑备份：pg_dump
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-pg_basebackup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 物理备份：pg_basebackup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-wal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 WAL 归档
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 备份保留策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#16-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6 Python 备份演示
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pitrpoint-in-time-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. PITR（Point-in-Time Recovery）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. PITR（Point-in-Time Recovery）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 PITR 原理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 恢复目标选项
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 完整 PITR 操作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-pitr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 PITR 注意事项
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 监控指标
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 监控指标">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 关键指标清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 连接数监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 缓存命中率
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 锁等待检测
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 死元组监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 复制延迟监控
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-checkpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 Checkpoint 统计
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Python 监控脚本
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 容量规划
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 容量规划">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 表与索引大小
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 增长趋势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 容量预测
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 索引空间优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 表空间与分区规划
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 安全加固
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 安全加固">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-ssltls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 SSL/TLS 配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-pg_hbaconf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 pg_hba.conf 配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 角色权限
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 密码策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 数据加密
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 审计日志
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-rls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7 行级安全（RLS）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#58-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8 Python 安全检查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 常见故障与排查
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 常见故障与排查">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 故障速查表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 连接被拒排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 查询变慢排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 磁盘满排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5 复制延迟排查流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Runbook（操作手册）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Runbook（操作手册）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 日常维护清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 紧急操作清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-minidb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 与 miniDB 的对照
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 文件清单
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 习题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="8">章8：数据库运维<a class="headerlink" href="#8" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>数据库上线只是开始，长期稳定运行靠的是备份、监控、容量规划与安全加固。本章覆盖 PostgreSQL 生产运维的完整闭环：备份策略、PITR、监控指标、容量规划、安全加固、故障排查与 Runbook。</p>
+</blockquote>
+<h2 id="_1">运维全景<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                    ┌─────────────────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                    │            数据库运维闭环                 │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                    └─────────────────────────────────────────┘
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                      │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>          ┌──────────────┬───────────┼───────────┬──────────────┐
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>          ▼              ▼           ▼           ▼              ▼
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>     ┌─────────┐   ┌─────────┐ ┌─────────┐ ┌─────────┐   ┌─────────┐
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>     │  备份   │   │  监控   │ │  容量   │ │  安全   │   │  故障   │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>     │  恢复   │   │  告警   │ │  规划   │ │  加固   │   │  排查   │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>     └────┬────┘   └────┬────┘ └────┬────┘ └────┬────┘   └────┬────┘
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>          │              │           │           │              │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>          ▼              ▼           ▼           ▼              ▼
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>     pg_dump        连接数       表大小       SSL/TLS       Runbook
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>     pg_basebackup  缓存命中     索引大小     pg_hba.conf   紧急操作
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>     WAL 归档       锁等待       增长趋势     角色权限      日常维护
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>     PITR           死元组                   数据加密
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                    复制延迟
+</code></pre></div>
+<blockquote>
+<p><strong>核心原则</strong>：备份不是运维的全部，但没有备份的运维等于零。监控发现问题，容量规划预防问题，安全加固防止灾难，Runbook 标准化响应。</p>
+</blockquote>
+<hr />
+<h2 id="1">1. 备份策略<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<h3 id="11">1.1 备份方式对比<a class="headerlink" href="#11" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>工具</th>
+<th>类型</th>
+<th>一致性</th>
+<th>恢复粒度</th>
+<th>速度</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>逻辑备份</strong></td>
+<td><code>pg_dump</code> / <code>pg_dumpall</code></td>
+<td>SQL 语句</td>
+<td>事务一致</td>
+<td>库/表/行</td>
+<td>慢</td>
+<td>小库、跨版本迁移、选择性恢复</td>
+</tr>
+<tr>
+<td><strong>物理备份</strong></td>
+<td><code>pg_basebackup</code></td>
+<td>数据文件</td>
+<td>块级一致</td>
+<td>整库</td>
+<td>快</td>
+<td>大库、PITR 基础备份</td>
+</tr>
+<tr>
+<td><strong>WAL 归档</strong></td>
+<td><code>archive_command</code></td>
+<td>WAL 文件</td>
+<td>流式</td>
+<td>任意时间点</td>
+<td>持续</td>
+<td>PITR、复制</td>
+</tr>
+<tr>
+<td><strong>快照备份</strong></td>
+<td>LVM / ZFS / EBS</td>
+<td>块设备</td>
+<td>崩溃一致</td>
+<td>整库</td>
+<td>极快</td>
+<td>云环境、大库</td>
+</tr>
+<tr>
+<td><strong>连续备份</strong></td>
+<td>pgBackRest / Barman</td>
+<td>物理+WAL</td>
+<td>一致</td>
+<td>PITR</td>
+<td>快</td>
+<td>生产推荐</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-pg_dump">1.2 逻辑备份：pg_dump<a class="headerlink" href="#12-pg_dump" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 纯文本格式（人类可读，psql 恢复）</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pg_dump<span class="w"> </span>-h<span class="w"> </span>localhost<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-F<span class="w"> </span>p<span class="w"> </span>-f<span class="w"> </span>backup.sql<span class="w"> </span>mydb
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 自定义压缩格式（pg_restore 恢复，支持并行、选择性）</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>pg_dump<span class="w"> </span>-h<span class="w"> </span>localhost<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-F<span class="w"> </span>c<span class="w"> </span>-f<span class="w"> </span>backup.dump<span class="w"> </span>mydb
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># tar 格式</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>pg_dump<span class="w"> </span>-h<span class="w"> </span>localhost<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-F<span class="w"> </span>t<span class="w"> </span>-f<span class="w"> </span>backup.tar<span class="w"> </span>mydb
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># 目录格式 + 并行（大库加速）</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>pg_dump<span class="w"> </span>-h<span class="w"> </span>localhost<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-F<span class="w"> </span>d<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>-f<span class="w"> </span>backup_dir/<span class="w"> </span>mydb
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># 仅 schema（不含数据）</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>pg_dump<span class="w"> </span>--schema-only<span class="w"> </span>-f<span class="w"> </span>schema.sql<span class="w"> </span>mydb
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># 仅数据</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>pg_dump<span class="w"> </span>--data-only<span class="w"> </span>-f<span class="w"> </span>data.sql<span class="w"> </span>mydb
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1"># 指定表</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>pg_dump<span class="w"> </span>-t<span class="w"> </span>users<span class="w"> </span>-t<span class="w"> </span>orders<span class="w"> </span>-f<span class="w"> </span>tables.dump<span class="w"> </span>mydb
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1"># 排除表</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>pg_dump<span class="w"> </span>-T<span class="w"> </span>huge_audit_log<span class="w"> </span>-f<span class="w"> </span>backup.dump<span class="w"> </span>mydb
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="c1"># 全集群（所有库 + 角色 + 表空间）</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>pg_dumpall<span class="w"> </span>-f<span class="w"> </span>cluster.sql
+</code></pre></div>
+<p><strong>格式选择决策树</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>需要跨大版本迁移? ──是──&gt; 纯文本 (F p) 或 自定义 (F c)
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>     │否
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>需要选择性恢复部分表? ──是──&gt; 自定义 (F c) + pg_restore -t
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>     │否
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>库很大 (&gt;100GB)? ──是──&gt; 目录格式 (F d) + 并行 (-j)
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>     │否
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>需要人类可读? ──是──&gt; 纯文本 (F p)
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>     │否
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>默认选择 ──────────────&gt; 自定义 (F c)
+</code></pre></div>
+<h3 id="13-pg_basebackup">1.3 物理备份：pg_basebackup<a class="headerlink" href="#13-pg_basebackup" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 前置配置（postgresql.conf）</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># wal_level = replica</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># max_wal_senders = 10</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># archive_mode = on</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># archive_command = &#39;test ! -f /archive/%f &amp;&amp; cp %p /archive/%f&#39;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 全量基础备份</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>pg_basebackup<span class="w"> </span>-h<span class="w"> </span>localhost<span class="w"> </span>-U<span class="w"> </span>replicator<span class="w"> </span>-D<span class="w"> </span>/backup/base<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>-Fp<span class="w"> </span>-Xs<span class="w"> </span>-P<span class="w"> </span>-R<span class="w"> </span>-c<span class="w"> </span>fast
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># 参数说明:</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1">#   -Fp   plain 格式（直接拷贝文件）</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1">#   -Xs   stream 方式传输 WAL（不依赖归档）</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1">#   -P    显示进度</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1">#   -R    自动生成 standby.signal + primary_conninfo</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1">#   -c fast  checkpoint 模式（快速，不等待）</span>
+</code></pre></div>
+<p><strong>物理备份原理</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pg_basebackup 流程:
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  1. 向主库发送 BASE_BACKUP 命令
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  2. 主库执行 checkpoint，记录起始 WAL 位置
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  3. 主库启动 WAL 流式发送（walsender 进程）
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  4. 主库逐文件拷贝数据文件到备份端
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  5. 备份端接收并写入
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  6. 主库发送结束 WAL 位置 + backup_label
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  7. 备份端写入 backup_label（恢复时据此定位起点）
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>恢复时:
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>  PG 启动 → 读 backup_label → 从起始 WAL 位置 replay → 结合归档 WAL → 至最新
+</code></pre></div>
+<h3 id="14-wal">1.4 WAL 归档<a class="headerlink" href="#14-wal" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># postgresql.conf</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="na">archive_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="na">archive_command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;test ! -f /var/lib/pg_archive/%f &amp;&amp; cp %p /var/lib/pg_archive/%f&#39;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="na">archive_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">300s</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="na">wal_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">replica</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="na">max_wal_senders</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">10</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="na">max_replication_slots</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">10</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+<th>推荐值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_mode</code></td>
+<td>开启归档</td>
+<td><code>on</code>（主库）/ <code>always</code>（主+备）</td>
+</tr>
+<tr>
+<td><code>archive_command</code></td>
+<td>归档命令</td>
+<td><code>test ! -f ... &amp;&amp; cp ...</code>（防覆盖）</td>
+</tr>
+<tr>
+<td><code>archive_timeout</code></td>
+<td>强制切换 WAL 间隔</td>
+<td><code>300s</code>（低写入库需设小）</td>
+</tr>
+<tr>
+<td><code>wal_level</code></td>
+<td>WAL 信息量</td>
+<td><code>replica</code>（物理复制）/ <code>logical</code>（逻辑复制）</td>
+</tr>
+<tr>
+<td><code>max_wal_senders</code></td>
+<td>WAL 发送进程上限</td>
+<td>从库数 + 2</td>
+</tr>
+<tr>
+<td><code>wal_keep_size</code></td>
+<td>额外保留 WAL 量</td>
+<td><code>1GB</code>（给从库缓冲）</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">-- 查看归档状态</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">archived_count</span><span class="p">,</span><span class="w"> </span><span class="n">failed_count</span><span class="p">,</span><span class="w"> </span><span class="n">last_archived_wal</span><span class="p">,</span><span class="w"> </span><span class="n">last_archived_time</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">       </span><span class="n">last_failed_wal</span><span class="p">,</span><span class="w"> </span><span class="n">last_failed_time</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_archiver</span><span class="p">;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1">-- 手动切换 WAL（触发归档）</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_switch_wal</span><span class="p">();</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1">-- 查看当前 WAL 位置</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_current_wal_lsn</span><span class="p">(),</span><span class="w"> </span><span class="n">pg_walfile_name</span><span class="p">(</span><span class="n">pg_current_wal_lsn</span><span class="p">());</span>
+</code></pre></div>
+<h3 id="15">1.5 备份保留策略<a class="headerlink" href="#15" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>备份类型</th>
+<th>保留周期</th>
+<th>存储位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每日逻辑备份</td>
+<td>7 天</td>
+<td>本地 + 异地</td>
+<td>快速单表恢复</td>
+</tr>
+<tr>
+<td>每周基础备份</td>
+<td>4 周</td>
+<td>本地 + 异地</td>
+<td>PITR 基准</td>
+</tr>
+<tr>
+<td>WAL 归档</td>
+<td>30 天</td>
+<td>异地</td>
+<td>任意时间点恢复</td>
+</tr>
+<tr>
+<td>月度全量</td>
+<td>12 个月</td>
+<td>冷存储</td>
+<td>长期归档</td>
+</tr>
+<tr>
+<td>年度全量</td>
+<td>7 年</td>
+<td>冷存储</td>
+<td>合规要求</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>3-2-1 原则</strong>：至少 3 份副本，2 种介质，1 份异地。</p>
+</blockquote>
+<h3 id="16-python">1.6 Python 备份演示<a class="headerlink" href="#16-python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># phase2/08-ops/backup_demo.py</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># 演示 pg_dump 逻辑备份、pg_basebackup 物理备份、WAL 归档配置、PITR 流程</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 运行方式:</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1">#   export PG_HOST=localhost PG_PORT=5432 PG_DB=postgres PG_USER=postgres PG_PASS=secret</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1">#   python phase2/08-ops/backup_demo.py</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># 核心函数:</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1">#   demo_pg_dump_logical()      # 4 种格式逻辑备份</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1">#   demo_pg_basebackup_physical()  # 物理基础备份</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1">#   demo_wal_archive_config()   # WAL 归档配置与状态</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1">#   demo_pitr_recovery()        # PITR 恢复流程</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1">#   demo_restore_from_logical() # 从逻辑备份恢复</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1">#   demo_backup_verification()  # 备份完整性验证</span>
+</code></pre></div>
+<hr />
+<h2 id="2-pitrpoint-in-time-recovery">2. PITR（Point-in-Time Recovery）<a class="headerlink" href="#2-pitrpoint-in-time-recovery" title="Permanent link">&para;</a></h2>
+<h3 id="21-pitr">2.1 PITR 原理<a class="headerlink" href="#21-pitr" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>时间轴 ──────────────────────────────────────────────►
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>       t0          t1          t2          t3          t4
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>       │           │           │           │           │
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    基础备份     误删表      想恢复到这    发现问题    现在
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>       │                       │
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>       └───── replay WAL ──────┘
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>             (从归档目录读取)
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>恢复流程:
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>  1. 停止当前 PG
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>  2. 用 t0 的基础备份替换数据目录
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>  3. 配置 restore_command 从归档目录读 WAL
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>  4. 配置 recovery_target_time = t2
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>  5. 启动 PG → 自动 replay WAL 从 t0 到 t2
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>  6. 到达 t2 后 pause（可检查数据）或 promote（提升为可写）
+</code></pre></div>
+<h3 id="22">2.2 恢复目标选项<a class="headerlink" href="#22" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recovery_target_time</code></td>
+<td>恢复到指定时间点</td>
+<td><code>'2026-01-01 14:30:00 +08:00'</code></td>
+</tr>
+<tr>
+<td><code>recovery_target_lsn</code></td>
+<td>恢复到指定 LSN</td>
+<td><code>'0/50000060'</code></td>
+</tr>
+<tr>
+<td><code>recovery_target_xid</code></td>
+<td>恢复到指定事务 ID</td>
+<td><code>'12345'</code></td>
+</tr>
+<tr>
+<td><code>recovery_target_name</code></td>
+<td>恢复到命名还原点</td>
+<td><code>'before_bulk_load'</code></td>
+</tr>
+<tr>
+<td><code>recovery_target_action</code></td>
+<td>到达目标后行为</td>
+<td><code>pause</code> / <code>promote</code> / <code>shutdown</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">-- 创建命名还原点（需 superuser）</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_create_restore_point</span><span class="p">(</span><span class="s1">&#39;before_important_migration&#39;</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="23-pitr">2.3 完整 PITR 操作<a class="headerlink" href="#23-pitr" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># 步骤1: 停止 PG</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">$PGBIN</span>/pg_ctl<span class="w"> </span>-D<span class="w"> </span><span class="nv">$PGDATA</span><span class="w"> </span>stop<span class="w"> </span>-m<span class="w"> </span>fast
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># 步骤2: 保存当前（损坏的）数据目录</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>mv<span class="w"> </span><span class="nv">$PGDATA</span><span class="w"> </span><span class="nv">$PGDATA</span>.broken
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># 步骤3: 解压基础备份</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>mkdir<span class="w"> </span><span class="nv">$PGDATA</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>tar<span class="w"> </span>xzf<span class="w"> </span>/backup/base_20260101.tar.gz<span class="w"> </span>-C<span class="w"> </span><span class="nv">$PGDATA</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="c1"># 步骤4: 写恢复配置</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>cat<span class="w"> </span>&gt;<span class="w"> </span><span class="nv">$PGDATA</span>/postgresql.auto.conf<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="s">restore_command = &#39;cp /var/lib/pg_archive/%f %p&#39;</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="s">recovery_target_time = &#39;2026-01-01 14:30:00 +08:00&#39;</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="s">recovery_target_action = &#39;pause&#39;</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="s">EOF</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>touch<span class="w"> </span><span class="nv">$PGDATA</span>/recovery.signal
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="c1"># 步骤5: 启动恢复</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="nv">$PGBIN</span>/pg_ctl<span class="w"> </span>-D<span class="w"> </span><span class="nv">$PGDATA</span><span class="w"> </span>start
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="c1"># 步骤6: 监控恢复进度（另一终端）</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>psql<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;SELECT pg_is_in_recovery();&quot;</span><span class="w">          </span>--<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>psql<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;SELECT * FROM pg_stat_wal_receiver;&quot;</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="c1"># 步骤7: 恢复暂停后检查数据</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>psql<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;SELECT count(*) FROM important_table;&quot;</span>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1"># 步骤8: 确认数据正确，提升为主库</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>psql<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;SELECT pg_promote();&quot;</span>
+</code></pre></div>
+<h3 id="24-pitr">2.4 PITR 注意事项<a class="headerlink" href="#24-pitr" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>注意点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>恢复目标不精确</strong></td>
+<td><code>recovery_target_time</code> 精度到秒，可能恢复到事务中间</td>
+</tr>
+<tr>
+<td><strong>recovery_target_action = pause</strong></td>
+<td>恢复后暂停在只读状态，便于检查后再决定 promote</td>
+</tr>
+<tr>
+<td><strong>恢复后不可回退</strong></td>
+<td>promote 后无法再回到更早时间点，需重新做 PITR</td>
+</tr>
+<tr>
+<td><strong>WAL 必须连续</strong></td>
+<td>归档 WAL 不能有缺口，否则恢复会停在缺口处</td>
+</tr>
+<tr>
+<td><strong>时间戳时区</strong></td>
+<td><code>recovery_target_time</code> 必须带时区，否则用服务器时区</td>
+</tr>
+<tr>
+<td><strong>命名还原点更安全</strong></td>
+<td><code>pg_create_restore_point</code> 比 time 精确</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3">3. 监控指标<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31">3.1 关键指标清单<a class="headerlink" href="#31" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>指标</th>
+<th>采集 SQL</th>
+<th>告警阈值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>连接</strong></td>
+<td>活跃连接数</td>
+<td><code>SELECT count(*) FROM pg_stat_activity</code></td>
+<td>&gt; 80% × max_connections</td>
+</tr>
+<tr>
+<td><strong>连接</strong></td>
+<td>idle in transaction</td>
+<td><code>... WHERE state = 'idle in transaction'</code></td>
+<td>&gt; 0 持续 5min</td>
+</tr>
+<tr>
+<td><strong>缓存</strong></td>
+<td>缓冲池命中率</td>
+<td><code>blks_hit / (blks_hit + blks_read)</code></td>
+<td>&lt; 99%</td>
+</tr>
+<tr>
+<td><strong>锁</strong></td>
+<td>等待锁数</td>
+<td><code>SELECT count(*) FROM pg_locks WHERE NOT granted</code></td>
+<td>&gt; 0</td>
+</tr>
+<tr>
+<td><strong>事务</strong></td>
+<td>最长事务时长</td>
+<td><code>now() - xact_start</code></td>
+<td>&gt; 60s</td>
+</tr>
+<tr>
+<td><strong>死元组</strong></td>
+<td>死元组总数</td>
+<td><code>SELECT sum(n_dead_tup) FROM pg_stat_user_tables</code></td>
+<td>增长趋势异常</td>
+</tr>
+<tr>
+<td><strong>复制</strong></td>
+<td>字节延迟</td>
+<td><code>pg_wal_lsn_diff(sent_lsn, replay_lsn)</code></td>
+<td>&gt; 16MB</td>
+</tr>
+<tr>
+<td><strong>复制</strong></td>
+<td>回放延迟</td>
+<td><code>replay_lag</code></td>
+<td>&gt; 5s</td>
+</tr>
+<tr>
+<td><strong>归档</strong></td>
+<td>归档失败数</td>
+<td><code>pg_stat_archiver.failed_count</code></td>
+<td>&gt; 0</td>
+</tr>
+<tr>
+<td><strong>磁盘</strong></td>
+<td>数据盘使用率</td>
+<td><code>df -h $PGDATA</code></td>
+<td>&gt; 80%</td>
+</tr>
+<tr>
+<td><strong>WAL</strong></td>
+<td>WAL 目录文件数</td>
+<td><code>count(*) FROM pg_ls_waldir()</code></td>
+<td>异常增长</td>
+</tr>
+<tr>
+<td><strong>复制槽</strong></td>
+<td>非活跃槽保留字节</td>
+<td><code>pg_wal_lsn_diff(current, restart_lsn)</code></td>
+<td>持续增长</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32">3.2 连接数监控<a class="headerlink" href="#32" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1">-- 按状态分布</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">state</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_activity</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">state</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1">-- 按数据库分布</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">datname</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_activity</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">datname</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">datname</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="c1">-- 按应用分布（需应用设置 application_name）</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">application_name</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_activity</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">application_name</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="c1">-- 连接来源 IP</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">client_addr</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_activity</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">client_addr</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="33">3.3 缓存命中率<a class="headerlink" href="#33" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">-- 数据库级命中率</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">datname</span><span class="p">,</span><span class="w"> </span><span class="n">blks_hit</span><span class="p">,</span><span class="w"> </span><span class="n">blks_read</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="n">blks_hit</span><span class="p">::</span><span class="nb">numeric</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">blks_hit</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">blks_read</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">hit_ratio</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_database</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">datname</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1">-- 表级命中率（需 pg_stat_user_tables）</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">       </span><span class="n">heap_blks_hit</span><span class="p">,</span><span class="w"> </span><span class="n">heap_blks_read</span><span class="p">,</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="n">heap_blks_hit</span><span class="p">::</span><span class="nb">numeric</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">heap_blks_hit</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">heap_blks_read</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">heap_blks_hit</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">heap_blks_read</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="k">ASC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+<blockquote>
+<p><strong>命中率低的原因</strong>：<code>shared_buffers</code> 太小、表远大于内存、全表扫描（Seq Scan）绕过缓存、冷数据被频繁访问。</p>
+</blockquote>
+<h3 id="34">3.4 锁等待检测<a class="headerlink" href="#34" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">-- 锁等待链：谁阻塞了谁</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">SELECT</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="n">blocked</span><span class="p">.</span><span class="n">pid</span><span class="w">        </span><span class="k">AS</span><span class="w"> </span><span class="n">blocked_pid</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="k">left</span><span class="p">(</span><span class="n">blocked</span><span class="p">.</span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="mi">60</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">blocked_query</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="n">blocking</span><span class="p">.</span><span class="n">pid</span><span class="w">       </span><span class="k">AS</span><span class="w"> </span><span class="n">blocking_pid</span><span class="p">,</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="k">left</span><span class="p">(</span><span class="n">blocking</span><span class="p">.</span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="mi">60</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">blocking_query</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="n">l</span><span class="p">.</span><span class="n">locktype</span><span class="p">,</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="n">l</span><span class="p">.</span><span class="k">mode</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">blocked_mode</span><span class="p">,</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="n">l2</span><span class="p">.</span><span class="k">mode</span><span class="w">            </span><span class="k">AS</span><span class="w"> </span><span class="n">blocking_mode</span><span class="p">,</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">blocked</span><span class="p">.</span><span class="n">query_start</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">waited</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_locks</span><span class="w"> </span><span class="n">l</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_stat_activity</span><span class="w"> </span><span class="n">blocked</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">blocked</span><span class="p">.</span><span class="n">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">pid</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_locks</span><span class="w"> </span><span class="n">l2</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">locktype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">locktype</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">                </span><span class="k">AND</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">relation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">relation</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">                </span><span class="k">AND</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="k">granted</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">pid</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">pid</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_stat_activity</span><span class="w"> </span><span class="n">blocking</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">blocking</span><span class="p">.</span><span class="n">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">pid</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="k">WHERE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="k">granted</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">waited</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>锁兼容矩阵（部分）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>请求 \ 持有</th>
+<th>AccessShare</th>
+<th>RowExclusive</th>
+<th>AccessExclusive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AccessShare</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>RowExclusive</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Share</strong></td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>AccessExclusive</strong></td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><code>SELECT</code> 持有 AccessShare，<code>INSERT/UPDATE/DELETE</code> 持有 RowExclusive，<code>TRUNCATE/VACUUM FULL/ALTER</code> 持有 AccessExclusive。</p>
+</blockquote>
+<h3 id="35">3.5 死元组监控<a class="headerlink" href="#35" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">-- 死元组堆积</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span><span class="w"> </span><span class="n">n_live_tup</span><span class="p">,</span><span class="w"> </span><span class="n">n_dead_tup</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="n">n_dead_tup</span><span class="p">::</span><span class="nb">numeric</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">n_live_tup</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">dead_ratio</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">       </span><span class="n">last_autovacuum</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">n_dead_tup</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">n_dead_tup</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1">-- autovacuum 是否跟上</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span><span class="w"> </span><span class="n">n_dead_tup</span><span class="p">,</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">       </span><span class="n">n_dead_tup</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">autovacuum_vacuum_threshold</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">       </span><span class="o">+</span><span class="w"> </span><span class="n">autovacuum_vacuum_scale_factor</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n_live_tup</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">need_vacuum</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span><span class="p">,</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">setting</span><span class="p">::</span><span class="nb">int</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">autovacuum_vacuum_threshold</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_settings</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;autovacuum_vacuum_threshold&#39;</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="p">)</span><span class="w"> </span><span class="n">t1</span><span class="p">,</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">setting</span><span class="p">::</span><span class="nb">float</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">autovacuum_vacuum_scale_factor</span>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_settings</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;autovacuum_vacuum_scale_factor&#39;</span>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="p">)</span><span class="w"> </span><span class="n">t2</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="36">3.6 复制延迟监控<a class="headerlink" href="#36" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1">-- 主库视角：各从库延迟</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">application_name</span><span class="p">,</span><span class="w"> </span><span class="n">client_addr</span><span class="p">,</span><span class="w"> </span><span class="k">state</span><span class="p">,</span><span class="w"> </span><span class="n">sync_state</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">       </span><span class="n">write_lag</span><span class="p">,</span><span class="w"> </span><span class="n">flush_lag</span><span class="p">,</span><span class="w"> </span><span class="n">replay_lag</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">       </span><span class="n">pg_wal_lsn_diff</span><span class="p">(</span><span class="n">sent_lsn</span><span class="p">,</span><span class="w"> </span><span class="n">replay_lsn</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">byte_lag</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_replication</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">byte_lag</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="c1">-- 从库视角：自身接收/回放状态</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">receive_start_lsn</span><span class="p">,</span><span class="w"> </span><span class="n">write_lsn</span><span class="p">,</span><span class="w"> </span><span class="n">flush_lsn</span><span class="p">,</span><span class="w"> </span><span class="n">replay_lsn</span><span class="p">,</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">       </span><span class="n">write_lag</span><span class="p">,</span><span class="w"> </span><span class="n">flush_lag</span><span class="p">,</span><span class="w"> </span><span class="n">replay_lag</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_wal_receiver</span><span class="p">;</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="c1">-- 复制槽保留的 WAL（非活跃槽会无限堆积）</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">slot_name</span><span class="p">,</span><span class="w"> </span><span class="n">active</span><span class="p">,</span><span class="w"> </span><span class="n">restart_lsn</span><span class="p">,</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">       </span><span class="n">pg_wal_lsn_diff</span><span class="p">(</span><span class="n">pg_current_wal_lsn</span><span class="p">(),</span><span class="w"> </span><span class="n">restart_lsn</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">retained_bytes</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_replication_slots</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>复制延迟原因排查</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>延迟增大
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  ├─ 从库负载高（大查询占用资源）→ 查 pg_stat_activity
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  ├─ 从库回放被长查询阻塞（hot_standby_feedback）→ 查从库长查询
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>  ├─ 网络带宽不足 → 查网络吞吐
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>  ├─ 主库写入突增 → 查主库 WAL 生成速率
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>  └─ 从库磁盘 IO 瓶颈 → iostat
+</code></pre></div>
+<h3 id="37-checkpoint">3.7 Checkpoint 统计<a class="headerlink" href="#37-checkpoint" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">buffers_checkpoint</span><span class="p">,</span><span class="w"> </span><span class="n">buffers_backend</span><span class="p">,</span><span class="w"> </span><span class="n">buffers_clean</span><span class="p">,</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">       </span><span class="n">checkpoints_req</span><span class="p">,</span><span class="w"> </span><span class="n">checkpoints_timed</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="n">buffers_checkpoint</span><span class="p">::</span><span class="nb">numeric</span><span class="w"> </span><span class="o">/</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">             </span><span class="k">nullif</span><span class="p">(</span><span class="n">buffers_checkpoint</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">buffers_backend</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">buffers_clean</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ckpt_ratio</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_bgwriter</span><span class="p">;</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>含义</th>
+<th>理想</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>buffers_checkpoint</code></td>
+<td>checkpoint 写入缓冲数</td>
+<td>占比高（&gt;90%）</td>
+</tr>
+<tr>
+<td><code>buffers_backend</code></td>
+<td>backend 自己写缓冲数</td>
+<td>占比低（&lt;10%）</td>
+</tr>
+<tr>
+<td><code>checkpoints_req</code></td>
+<td>请求的 checkpoint（WAL 满触发）</td>
+<td>少</td>
+</tr>
+<tr>
+<td><code>checkpoints_timed</code></td>
+<td>定时 checkpoint</td>
+<td>多</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><code>buffers_backend</code> 占比高说明 checkpoint 不够频繁，backend 被迫自己刷脏页，导致查询延迟抖动。调大 <code>max_wal_size</code> 或 <code>checkpoint_timeout</code>。</p>
+</blockquote>
+<h3 id="38-python">3.8 Python 监控脚本<a class="headerlink" href="#38-python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># phase2/08-ops/monitoring.py</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># 收集 9 大类指标：连接、缓存、锁、长事务、死元组、复制、表空间、慢查询、checkpoint</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># 运行方式:</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="c1">#   export PG_HOST=localhost PG_PORT=5432 PG_DB=postgres PG_USER=postgres PG_PASS=secret</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1">#   export LONG_TXN_THRESHOLD=60</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1">#   python phase2/08-ops/monitoring.py</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="c1"># 输出示例:</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1">#   === 1. 连接数指标 ===</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="c1">#     最大连接数:     100</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c1">#     当前活跃连接:   12  (12.0%)</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="c1">#   === 3. 锁等待检测 ===</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="c1">#     [OK] 当前无锁等待</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="c1">#   === 6. 复制延迟监控 ===</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="c1">#     [信息] 当前无流复制从库</span>
+</code></pre></div>
+<hr />
+<h2 id="4">4. 容量规划<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<h3 id="41">4.1 表与索引大小<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1">-- 表大小（含 toast、索引）</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">))</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">table_size</span><span class="p">,</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_indexes_size</span><span class="p">(</span><span class="n">relid</span><span class="p">))</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">index_size</span><span class="p">,</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_size</span><span class="p">,</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">       </span><span class="n">n_live_tup</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1">-- 单表详细</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="k">SELECT</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">    </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_relation_size</span><span class="p">(</span><span class="s1">&#39;orders&#39;</span><span class="p">))</span><span class="w">       </span><span class="k">AS</span><span class="w"> </span><span class="n">heap_size</span><span class="p">,</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="w">    </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_table_size</span><span class="p">(</span><span class="s1">&#39;orders&#39;</span><span class="p">))</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">table_size</span><span class="p">,</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="w">    </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_indexes_size</span><span class="p">(</span><span class="s1">&#39;orders&#39;</span><span class="p">))</span><span class="w">        </span><span class="k">AS</span><span class="w"> </span><span class="n">index_size</span><span class="p">,</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="w">    </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="s1">&#39;orders&#39;</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_size</span><span class="p">;</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="c1">-- 索引大小 Top</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">indexrelname</span><span class="p">,</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">indexrelid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">index_size</span><span class="p">,</span>
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a><span class="w">       </span><span class="n">idx_scan</span>
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_indexes</span>
+<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">indexrelid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>空间构成</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pg_total_relation_size = pg_relation_size (堆表)
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>                       + pg_indexes_size  (所有索引)
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>                       + toast 表 + toast 索引
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>pg_table_size = pg_relation_size + toast 表
+</code></pre></div>
+<h3 id="42">4.2 增长趋势<a class="headerlink" href="#42" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1">-- 方法1：定期采样记录表大小（推荐建表存储）</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="n">growth_sample</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="n">ts</span><span class="w">        </span><span class="n">timestamptz</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="n">relid</span><span class="w">     </span><span class="n">oid</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">    </span><span class="k">size</span><span class="w">      </span><span class="nb">bigint</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="p">);</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="c1">-- 每小时采样（cron）</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="n">growth_sample</span><span class="w"> </span><span class="p">(</span><span class="n">relid</span><span class="p">,</span><span class="w"> </span><span class="k">size</span><span class="p">)</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relid</span><span class="p">,</span><span class="w"> </span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">)</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span><span class="p">;</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="c1">-- 计算日均增长</span>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span>
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">       </span><span class="k">max</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">growth_bytes</span><span class="p">,</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="k">max</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="k">size</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">growth_pretty</span><span class="p">,</span>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="w">       </span><span class="n">round</span><span class="p">((</span><span class="k">max</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="k">size</span><span class="p">))::</span><span class="nb">numeric</span><span class="w"> </span><span class="o">/</span>
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="w">             </span><span class="k">nullif</span><span class="p">(</span><span class="k">extract</span><span class="p">(</span><span class="n">epoch</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">ts</span><span class="p">))</span><span class="o">/</span><span class="mi">86400</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">bytes_per_day</span><span class="p">,</span>
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(((</span><span class="k">max</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="k">size</span><span class="p">))</span><span class="w"> </span><span class="o">/</span>
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a><span class="w">             </span><span class="k">nullif</span><span class="p">(</span><span class="k">extract</span><span class="p">(</span><span class="n">epoch</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">ts</span><span class="p">))</span><span class="o">/</span><span class="mi">86400</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">))::</span><span class="nb">bigint</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">per_day</span>
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a><span class="k">FROM</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="n">growth_sample</span><span class="w"> </span><span class="n">s</span>
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_class</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">oid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">relid</span>
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">relname</span>
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1">-- 方法2：利用 pg_stat_user_tables 的估算</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="c1">-- n_live_tup × 平均行大小 ≈ 表大小</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span><span class="w"> </span><span class="n">n_live_tup</span><span class="p">,</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">       </span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">n_live_tup</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_row_bytes</span><span class="p">,</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">current_size</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">n_live_tup</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="43">4.3 容量预测<a class="headerlink" href="#43" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>预测公式:
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>  当前大小 + 日均增长 × 天数 = 未来大小
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>示例:
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>  当前 500GB，日均增长 2GB，预测 90 天后:
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>  500 + 2 × 90 = 680GB
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>  磁盘 1TB，使用率阈值 80% (800GB):
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>  (800 - 500) / 2 = 150 天后触达阈值
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>规划动作:
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>  - &lt; 30 天触达 → 立即扩容或清理
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>  - 30-90 天触达 → 规划扩容窗口
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>  - &gt; 90 天触达 → 纳入季度规划
+</code></pre></div>
+<h3 id="44">4.4 索引空间优化<a class="headerlink" href="#44" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1">-- 未使用的索引（占用空间但无扫描）</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">indexrelname</span><span class="p">,</span><span class="w"> </span><span class="n">relname</span><span class="p">,</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">indexrelid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">index_size</span><span class="p">,</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">       </span><span class="n">idx_scan</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_indexes</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">idx_scan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">schemaname</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;pg_catalog&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;information_schema&#39;</span><span class="p">)</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">indexrelid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="c1">-- 重复索引</span>
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">idx1</span><span class="p">.</span><span class="n">indexrelid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">size</span><span class="p">,</span>
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="w">       </span><span class="n">idx1</span><span class="p">.</span><span class="n">relname</span><span class="p">,</span><span class="w"> </span><span class="n">idx1</span><span class="p">.</span><span class="n">indexrelname</span><span class="p">,</span><span class="w"> </span><span class="n">idx2</span><span class="p">.</span><span class="n">indexrelname</span>
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_indexes</span><span class="w"> </span><span class="n">idx1</span>
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_stat_user_indexes</span><span class="w"> </span><span class="n">idx2</span>
+<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">idx1</span><span class="p">.</span><span class="n">relid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">idx2</span><span class="p">.</span><span class="n">relid</span>
+<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">idx1</span><span class="p">.</span><span class="n">indexrelid</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">idx2</span><span class="p">.</span><span class="n">indexrelid</span>
+<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">pg_get_indexdef</span><span class="p">(</span><span class="n">idx1</span><span class="p">.</span><span class="n">indexrelid</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pg_get_indexdef</span><span class="p">(</span><span class="n">idx2</span><span class="p">.</span><span class="n">indexrelid</span><span class="p">);</span>
+</code></pre></div>
+<blockquote>
+<p><strong>注意</strong>：<code>idx_scan = 0</code> 不一定意味着索引无用（可能是唯一约束或外键约束）。删除前确认非约束依赖。</p>
+</blockquote>
+<h3 id="45">4.5 表空间与分区规划<a class="headerlink" href="#45" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1">-- 表空间使用</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_tablespace_name</span><span class="p">(</span><span class="n">oid</span><span class="p">),</span><span class="w"> </span><span class="n">pg_tablespace_location</span><span class="p">(</span><span class="n">oid</span><span class="p">)</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_tablespace</span><span class="p">;</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1">-- 分区表大小分布</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">relid</span><span class="p">::</span><span class="n">regclass</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">partition</span><span class="p">,</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">       </span><span class="n">pg_size_pretty</span><span class="p">(</span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">size</span><span class="p">,</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">       </span><span class="n">n_live_tup</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_tables</span>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">relid</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">inhrelid</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_inherits</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">inhparent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;orders&#39;</span><span class="p">::</span><span class="n">regclass</span>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="p">)</span>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_total_relation_size</span><span class="p">(</span><span class="n">relid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>分区策略与容量</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>分区方式</th>
+<th>适用</th>
+<th>容量优势</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>范围分区</strong></td>
+<td>时间序列数据</td>
+<td>老分区可整体归档/删除，瞬时释放空间</td>
+</tr>
+<tr>
+<td><strong>列表分区</strong></td>
+<td>地域/租户</td>
+<td>按租户独立管理</td>
+</tr>
+<tr>
+<td><strong>哈希分区</strong></td>
+<td>均匀分布</td>
+<td>写入分散到多表空间</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5">5. 安全加固<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<h3 id="51-ssltls">5.1 SSL/TLS 配置<a class="headerlink" href="#51-ssltls" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># postgresql.conf</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="na">ssl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="na">ssl_cert_file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;/etc/postgresql/ssl/server.crt&#39;</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="na">ssl_key_file</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;/etc/postgresql/ssl/server.key&#39;</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="na">ssl_ca_file</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;/etc/postgresql/ssl/ca.crt&#39;</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="na">ssl_min_protocol_version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;TLSv1.2&#39;</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="na">ssl_ciphers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;HIGH:MEDIUM:+3DES:!aNULL&#39;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># 生成自签名证书（测试用，生产用 CA 签发）</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>openssl<span class="w"> </span>req<span class="w"> </span>-new<span class="w"> </span>-x509<span class="w"> </span>-days<span class="w"> </span><span class="m">365</span><span class="w"> </span>-nodes<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>-text<span class="w"> </span>-out<span class="w"> </span>server.crt<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>-keyout<span class="w"> </span>server.key<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">  </span>-subj<span class="w"> </span><span class="s2">&quot;/CN=pg.example.com&quot;</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>server.key
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>chown<span class="w"> </span>postgres:postgres<span class="w"> </span>server.key<span class="w"> </span>server.crt
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1">-- 验证 SSL 连接</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ssl</span><span class="p">,</span><span class="w"> </span><span class="n">ssl_version</span><span class="p">,</span><span class="w"> </span><span class="n">ssl_cipher</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_ssl</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">pg_stat_activity</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pg_backend_pid</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="52-pg_hbaconf">5.2 pg_hba.conf 配置<a class="headerlink" href="#52-pg_hbaconf" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a># TYPE  DATABASE    USER        ADDRESS          METHOD          OPTIONS
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a># 本地连接
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>local   all         postgres                    peer
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>local   all         all                         scram-sha-256
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a># 复制连接（仅限复制用户）
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>host    replication replicator  10.0.0.0/8       scram-sha-256
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a># 应用连接（限制来源网段）
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>host    appdb       appuser     10.0.1.0/24      scram-sha-256   sslmode=require
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a># 管理连接（仅限跳板机）
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>host    all         dba         10.0.0.5/32      scram-sha-256   sslmode=require
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a># 拒绝其他
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>host    all         all         0.0.0.0/0        reject
+</code></pre></div>
+<p><strong>认证方式对比</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>安全性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trust</code></td>
+<td>❌ 极危险</td>
+<td>免密登录，仅限本地调试</td>
+</tr>
+<tr>
+<td><code>password</code></td>
+<td>❌ 危险</td>
+<td>明文传输密码</td>
+</tr>
+<tr>
+<td><code>md5</code></td>
+<td>⚠️ 一般</td>
+<td>哈希传输，易受离线破解</td>
+</tr>
+<tr>
+<td><code>scram-sha-256</code></td>
+<td>✅ 推荐</td>
+<td>PG 13+ 默认，加盐挑战响应</td>
+</tr>
+<tr>
+<td><code>peer</code></td>
+<td>✅ 限定本地</td>
+<td>依赖 OS 用户映射</td>
+</tr>
+<tr>
+<td><code>cert</code></td>
+<td>✅ 强</td>
+<td>客户端证书认证</td>
+</tr>
+<tr>
+<td><code>ldap</code> / <code>radius</code></td>
+<td>✅ 集中</td>
+<td>对接企业认证</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53">5.3 角色权限<a class="headerlink" href="#53" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1">-- 遵循最小权限原则</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="c1">-- 1. 应用用户：仅授予所需库表的权限</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">appuser</span><span class="w"> </span><span class="n">LOGIN</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;...&#39;</span><span class="w"> </span><span class="k">CONNECTION</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">50</span><span class="p">;</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">CONNECT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DATABASE</span><span class="w"> </span><span class="n">appdb</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">appuser</span><span class="p">;</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">USAGE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">appuser</span><span class="p">;</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="p">,</span><span class="w"> </span><span class="k">INSERT</span><span class="p">,</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">,</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="n">TABLES</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">appuser</span><span class="p">;</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">PRIVILEGES</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="n">app</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">    </span><span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="p">,</span><span class="w"> </span><span class="k">INSERT</span><span class="p">,</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">,</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">TABLES</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">appuser</span><span class="p">;</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="c1">-- 2. 只读用户（报表/分析）</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="n">LOGIN</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;...&#39;</span><span class="p">;</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">CONNECT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DATABASE</span><span class="w"> </span><span class="n">appdb</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">USAGE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="k">GRANT</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">ALL</span><span class="w"> </span><span class="n">TABLES</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="k">SCHEMA</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="c1">-- 3. 复制用户（仅复制权限）</span>
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">replicator</span><span class="w"> </span><span class="n">REPLICATION</span><span class="w"> </span><span class="n">LOGIN</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;...&#39;</span><span class="p">;</span>
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="c1">-- 4. DBA（受限超管，不用真实 superuser）</span>
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">dba</span><span class="w"> </span><span class="n">LOGIN</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;...&#39;</span><span class="p">;</span>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a><span class="k">GRANT</span><span class="w"> </span><span class="n">pg_signal_backend</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">dba</span><span class="p">;</span>
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a><span class="k">GRANT</span><span class="w"> </span><span class="n">pg_rotate_logfile</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="n">dba</span><span class="p">;</span>
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a><span class="c1">-- 避免直接给 superuser，用 pg_signal_backend 等细粒度角色</span>
+<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>
+<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a><span class="c1">-- 检查权限</span>
+<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rolname</span><span class="p">,</span><span class="w"> </span><span class="n">rolsuper</span><span class="p">,</span><span class="w"> </span><span class="n">rolcreatedb</span><span class="p">,</span><span class="w"> </span><span class="n">rolcreaterole</span><span class="p">,</span><span class="w"> </span><span class="n">rolreplication</span><span class="p">,</span><span class="w"> </span><span class="n">rolbypassrls</span>
+<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_roles</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rolname</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>权限层级</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>superuser (最高，避免日常使用)
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>  └─ createdb + createrole + replication + bypassrls (DBA)
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>       └─ schema owner (建表建索引)
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>            └─ table writer (DML)
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>                 └─ table reader (SELECT)
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>                      └─ CONNECT only (仅登录)
+</code></pre></div>
+<h3 id="54">5.4 密码策略<a class="headerlink" href="#54" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1">-- 设置密码加密方式</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">SYSTEM</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">password_encryption</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;scram-sha-256&#39;</span><span class="p">;</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pg_reload_conf</span><span class="p">();</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="c1">-- 设置密码有效期</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">appuser</span><span class="w"> </span><span class="k">VALID</span><span class="w"> </span><span class="k">UNTIL</span><span class="w"> </span><span class="s1">&#39;2026-12-31&#39;</span><span class="p">;</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="c1">-- 修改密码（会自动用 password_encryption 加密）</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="n">appuser</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;new_strong_password&#39;</span><span class="p">;</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a><span class="c1">-- 查看密码类型</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rolname</span><span class="p">,</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a><span class="w">       </span><span class="k">CASE</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a><span class="w">           </span><span class="k">WHEN</span><span class="w"> </span><span class="n">rolpassword</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;SCRAM-SHA-256%&#39;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="s1">&#39;scram-sha-256&#39;</span>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a><span class="w">           </span><span class="k">WHEN</span><span class="w"> </span><span class="n">rolpassword</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;md5%&#39;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="s1">&#39;md5&#39;</span>
+<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a><span class="w">           </span><span class="k">ELSE</span><span class="w"> </span><span class="s1">&#39;other&#39;</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="w">       </span><span class="k">END</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">pwd_type</span>
+<a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_authid</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">rolcanlogin</span><span class="p">;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1">-- 密码复杂度（需 password_check_hook 或外部工具）</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="c1">-- PG 14+ 可用 password_check_hook</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="c1">-- 或用 pgcrypto + 触发器自实现</span>
+</code></pre></div>
+<h3 id="55">5.5 数据加密<a class="headerlink" href="#55" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>方式</th>
+<th>透明度</th>
+<th>性能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>磁盘级</strong></td>
+<td>LUKS / dm-crypt / EBS 加密</td>
+<td>对 PG 透明</td>
+<td>内核级，开销小</td>
+</tr>
+<tr>
+<td><strong>文件系统级</strong></td>
+<td>ZFS 加密 / eCryptfs</td>
+<td>对 PG 透明</td>
+<td>中等</td>
+</tr>
+<tr>
+<td><strong>列级</strong></td>
+<td>pgcrypto 扩展</td>
+<td>应用需改 SQL</td>
+<td>函数调用开销</td>
+</tr>
+<tr>
+<td><strong>传输级</strong></td>
+<td>SSL/TLS</td>
+<td>对 PG 透明</td>
+<td>握手开销</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1">-- pgcrypto 列级加密</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="n">EXTENSION</span><span class="w"> </span><span class="n">pgcrypto</span><span class="p">;</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="n">id</span><span class="w">       </span><span class="nb">serial</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">    </span><span class="n">name</span><span class="w">     </span><span class="nb">text</span><span class="p">,</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">    </span><span class="n">ssn</span><span class="w">      </span><span class="n">bytea</span><span class="w">  </span><span class="c1">-- 加密存储</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="p">);</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="c1">-- 写入（应用持有密钥）</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">ssn</span><span class="p">)</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;alice&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">encrypt</span><span class="p">(</span><span class="s1">&#39;123-45-6789&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;secret_key&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;aes&#39;</span><span class="p">));</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a><span class="c1">-- 读取</span>
+<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">convert_from</span><span class="p">(</span><span class="n">decrypt</span><span class="p">(</span><span class="n">ssn</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;secret_key&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;aes&#39;</span><span class="p">),</span><span class="w"> </span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ssn</span>
+<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="p">;</span>
+<a id="__codelineno-34-17" name="__codelineno-34-17" href="#__codelineno-34-17"></a>
+<a id="__codelineno-34-18" name="__codelineno-34-18" href="#__codelineno-34-18"></a><span class="c1">-- 不可逆加密（密码哈希）</span>
+<a id="__codelineno-34-19" name="__codelineno-34-19" href="#__codelineno-34-19"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">crypt</span><span class="p">(</span><span class="s1">&#39;user_password&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">gen_salt</span><span class="p">(</span><span class="s1">&#39;bf&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">));</span><span class="w">  </span><span class="c1">-- bcrypt</span>
+<a id="__codelineno-34-20" name="__codelineno-34-20" href="#__codelineno-34-20"></a><span class="c1">-- 验证</span>
+<a id="__codelineno-34-21" name="__codelineno-34-21" href="#__codelineno-34-21"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">crypt</span><span class="p">(</span><span class="s1">&#39;input&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">stored_hash</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stored_hash</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">matched</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="56">5.6 审计日志<a class="headerlink" href="#56" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># postgresql.conf</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="na">log_connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="na">log_disconnections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="na">log_statement</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;ddl&#39;</span><span class="w">              </span><span class="c1"># none|ddl|mod|all</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="na">log_min_duration_statement</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">1000</span><span class="w">  </span><span class="c1"># 记录 &gt;1s 的慢查询</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="na">log_lock_waits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="na">log_temp_files</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0</span><span class="w">                 </span><span class="c1"># 记录所有临时文件使用</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="na">log_checkpoints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="na">log_line_prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;%m [%p] %u@%d %h &#39;</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="na">log_directory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#39;log&#39;</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="na">log_rotation_age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">1d</span>
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="na">log_rotation_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">100MB</span>
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="na">log_truncate_on_rotation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">on</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>log_statement</code></th>
+<th>记录内容</th>
+<th>日志量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>不记录 SQL</td>
+<td>最小</td>
+</tr>
+<tr>
+<td><code>ddl</code></td>
+<td>DDL（CREATE/ALTER/DROP）</td>
+<td>小</td>
+</tr>
+<tr>
+<td><code>mod</code></td>
+<td>DDL + DML（INSERT/UPDATE/DELETE）</td>
+<td>中</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>所有 SQL</td>
+<td>大</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>生产环境推荐 <code>ddl</code> + <code>log_min_duration_statement</code>，避免 <code>all</code> 导致日志量爆炸。</p>
+</blockquote>
+<h3 id="57-rls">5.7 行级安全（RLS）<a class="headerlink" href="#57-rls" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="c1">-- 启用 RLS</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">ENABLE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="c1">-- 强制 RLS（对表 owner 也生效）</span>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">FORCE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="c1">-- 策略：用户只能看自己的订单</span>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="k">CREATE</span><span class="w"> </span><span class="n">POLICY</span><span class="w"> </span><span class="n">orders_isolation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">orders</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a><span class="w">    </span><span class="k">FOR</span><span class="w"> </span><span class="k">SELECT</span>
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="w">    </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">&#39;app.user_id&#39;</span><span class="p">)::</span><span class="nb">int</span><span class="p">);</span>
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a><span class="c1">-- 应用设置当前用户</span>
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a><span class="k">SET</span><span class="w"> </span><span class="n">app</span><span class="p">.</span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="p">;</span><span class="w">  </span><span class="c1">-- 仅返回 user_id = 42 的行</span>
+</code></pre></div>
+<h3 id="58-python">5.8 Python 安全检查<a class="headerlink" href="#58-python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># phase2/08-ops/security_check.py</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="c1"># 检查 8 大安全维度：SSL、pg_hba、用户权限、密码策略、连接安全、数据加密、审计日志、RLS</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="c1"># 运行方式:</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="c1">#   export PG_HOST=localhost PG_PORT=5432 PG_DB=postgres PG_USER=postgres PG_PASS=secret</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="c1">#   python phase2/08-ops/security_check.py</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a><span class="c1"># 输出:</span>
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a><span class="c1">#   [OK]   SSL 已开启</span>
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a><span class="c1">#   [ERROR] 存在 trust 认证（免密登录），极度危险</span>
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a><span class="c1">#   [WARN] 未安装 pgcrypto 扩展</span>
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a><span class="c1">#   ...</span>
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a><span class="c1">#   === 安全检查报告 ===</span>
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a><span class="c1">#     总检查项: 25</span>
+<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a><span class="c1">#     通过:     18</span>
+<a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a><span class="c1">#     警告:     5</span>
+<a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a><span class="c1">#     错误:     2</span>
+</code></pre></div>
+<hr />
+<h2 id="6">6. 常见故障与排查<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<h3 id="61">6.1 故障速查表<a class="headerlink" href="#61" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>可能原因</th>
+<th>首步排查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>连接被拒</td>
+<td>PG 未启动 / 监听地址 / pg_hba</td>
+<td><code>pg_isready</code>、日志</td>
+</tr>
+<tr>
+<td><code>too many clients</code></td>
+<td>连接耗尽</td>
+<td><code>SELECT count(*) FROM pg_stat_activity</code></td>
+</tr>
+<tr>
+<td>查询变慢</td>
+<td>统计信息过期 / 锁等待 / IO 瓶颈</td>
+<td><code>EXPLAIN ANALYZE</code></td>
+</tr>
+<tr>
+<td>磁盘满</td>
+<td>WAL 堆积 / 表膨胀 / 归档失败</td>
+<td><code>df -h</code>、<code>pg_stat_archiver</code></td>
+</tr>
+<tr>
+<td>主从延迟</td>
+<td>从库负载 / 网络 / 大事务</td>
+<td><code>pg_stat_replication</code></td>
+</tr>
+<tr>
+<td>OOM Killed</td>
+<td>work_mem × 并发过大</td>
+<td><code>dmesg</code>、<code>work_mem</code></td>
+</tr>
+<tr>
+<td>VACUUM 不生效</td>
+<td>长事务 / 复制槽 / idle in txn</td>
+<td><code>pg_stat_activity</code></td>
+</tr>
+<tr>
+<td>恢复卡住</td>
+<td>WAL 缺口 / 归档目录不可达</td>
+<td><code>pg_stat_wal_receiver</code>、日志</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62">6.2 连接被拒排查流程<a class="headerlink" href="#62" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>无法连接
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>  ├─ pg_isready 返回拒绝? ──是──&gt; PG 未启动 / 启动失败
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>  │                              ├─ 查日志: tail $PGDATA/log/*.log
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>  │                              ├─ 查端口: ss -tlnp | grep 5432
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>  │                              └─ 查配置: postgresql.conf 语法
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>  │
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>  ├─ pg_isready 接受但 psql 报认证失败?
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>  │                              ├─ pg_hba.conf 是否允许该 IP/用户
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a>  │                              ├─ 认证方式是否匹配（md5 vs scram）
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>  │                              ├─ 密码是否正确
+<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a>  │                              └─ SSL 配置是否匹配（sslmode）
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a>  │
+<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>  └─ 网络层?
+<a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a>                                 ├─ telnet host 5432
+<a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a>                                 ├─ 防火墙: iptables / firewalld
+<a id="__codelineno-38-16" name="__codelineno-38-16" href="#__codelineno-38-16"></a>                                 └─ DNS 解析
+</code></pre></div>
+<h3 id="63">6.3 查询变慢排查流程<a class="headerlink" href="#63" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>查询变慢
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>  ├─ 是全局限速（所有查询都慢）?
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>  │   ├─ 系统负载: top / iostat / vmstat
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>  │   ├─ 锁等待: SELECT count(*) FROM pg_locks WHERE NOT granted
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>  │   ├─ 连接数: SELECT count(*) FROM pg_stat_activity
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>  │   └─ 检查是否在 checkpoint: pg_stat_bgwriter
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>  │
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>  └─ 是单查询慢?
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>      ├─ EXPLAIN (ANALYZE, BUFFERS) SELECT ...
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>      │   ├─ Seq Scan 本应 Index Scan? → ANALYZE 或建索引
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>      │   ├─ rows 估算偏差大? → ANALYZE
+<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>      │   ├─ 高 cost 节点? → 优化 SQL 或索引
+<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>      │   └─ Buffers: shared hit 低? → 增 shared_buffers
+<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>      ├─ 是否被锁阻塞? → pg_locks + pg_stat_activity
+<a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a>      ├─ 是否等待 IO? → iostat 查看 await
+<a id="__codelineno-39-16" name="__codelineno-39-16" href="#__codelineno-39-16"></a>      └─ 是否临时文件溢出? → log_temp_files
+</code></pre></div>
+<h3 id="64">6.4 磁盘满排查流程<a class="headerlink" href="#64" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>磁盘满 (df -h &gt; 95%)
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>  ├─ du -sh $PGDATA/* 定位占用
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>  │
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>  ├─ pg_wal/ 占用大?
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>  │   ├─ 归档失败: SELECT * FROM pg_stat_archiver
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>  │   ├─ 复制槽堆积: SELECT * FROM pg_replication_slots
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>  │   ├─ max_wal_size 太大: SHOW max_wal_size
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>  │   └─ 处理: 修复归档 / 推进复制槽 / pg_switch_wal()
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>  │
+<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>  ├─ base/ (数据文件) 占用大?
+<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>  │   ├─ 找最大表: SELECT relname, pg_total_relation_size(relid) ...
+<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>  │   ├─ 表膨胀: VACUUM FULL 或 pg_repack
+<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a>  │   └─ 正常增长: 扩容或分区归档
+<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>  │
+<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>  └─ log/ 占用大?
+<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>      └─ 配置 log_rotation_age / log_rotation_size
+</code></pre></div>
+<h3 id="65">6.5 复制延迟排查流程<a class="headerlink" href="#65" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>复制延迟 (byte_lag 持续增长)
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>  ├─ 从库负载高?
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>  │   ├─ 从库长查询: SELECT * FROM pg_stat_activity WHERE state=&#39;active&#39;
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>  │   ├─ 从库 IO: iostat -x 1
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>  │   └─ 处理: 终止非必要查询 / 从库扩容
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>  │
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>  ├─ 主库写入突增?
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>  │   ├─ 查 WAL 生成速率: pg_wal_lsn_diff(pg_current_wal_lsn(), 上次采样)
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>  │   └─ 等写入峰值过去
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>  │
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>  ├─ 网络?
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>  │   ├─ 带宽测试: iperf3
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>  │   └─ 处理: 升级带宽 / 压缩 WAL (wal_compression=on)
+<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>  │
+<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a>  └─ 从库回放被阻塞?
+<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>      ├─ hot_standby_feedback = on 时，从库长查询会阻止主库 VACUUM
+<a id="__codelineno-41-17" name="__codelineno-41-17" href="#__codelineno-41-17"></a>      ├─ max_standby_streaming_delay 设置
+<a id="__codelineno-41-18" name="__codelineno-41-18" href="#__codelineno-41-18"></a>      └─ 终止从库长查询
+</code></pre></div>
+<hr />
+<h2 id="7-runbook">7. Runbook（操作手册）<a class="headerlink" href="#7-runbook" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>完整操作手册见 <code>phase2/08-ops/runbook.md</code>，此处为摘要。</p>
+</blockquote>
+<h3 id="71">7.1 日常维护清单<a class="headerlink" href="#71" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>频率</th>
+<th>检查项</th>
+<th>命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每日</td>
+<td>实例存活</td>
+<td><code>pg_isready</code></td>
+</tr>
+<tr>
+<td>每日</td>
+<td>复制状态</td>
+<td><code>SELECT * FROM pg_stat_replication</code></td>
+</tr>
+<tr>
+<td>每日</td>
+<td>归档状态</td>
+<td><code>SELECT * FROM pg_stat_archiver</code></td>
+</tr>
+<tr>
+<td>每日</td>
+<td>连接数</td>
+<td><code>SELECT count(*) FROM pg_stat_activity</code></td>
+</tr>
+<tr>
+<td>每日</td>
+<td>锁等待</td>
+<td><code>SELECT count(*) FROM pg_locks WHERE NOT granted</code></td>
+</tr>
+<tr>
+<td>每日</td>
+<td>磁盘空间</td>
+<td><code>df -h $PGDATA</code></td>
+</tr>
+<tr>
+<td>每周</td>
+<td>死元组</td>
+<td><code>SELECT sum(n_dead_tup) FROM pg_stat_user_tables</code></td>
+</tr>
+<tr>
+<td>每周</td>
+<td>慢查询 Top</td>
+<td><code>pg_stat_statements</code></td>
+</tr>
+<tr>
+<td>每周</td>
+<td>未使用索引</td>
+<td><code>pg_stat_user_indexes WHERE idx_scan = 0</code></td>
+</tr>
+<tr>
+<td>每月</td>
+<td>容量趋势</td>
+<td>分析增长曲线</td>
+</tr>
+<tr>
+<td>每月</td>
+<td>安全审计</td>
+<td><code>python security_check.py</code></td>
+</tr>
+<tr>
+<td>每月</td>
+<td>备份恢复演练</td>
+<td>在测试环境恢复</td>
+</tr>
+</tbody>
+</table>
+<h3 id="72">7.2 紧急操作清单<a class="headerlink" href="#72" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>首步动作</th>
+<th>参考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>磁盘满</td>
+<td>定位占用来源，清理 WAL/日志/膨胀</td>
+<td>runbook §2.1</td>
+</tr>
+<tr>
+<td>连接耗尽</td>
+<td>终止 idle 连接，提高上限</td>
+<td>runbook §2.2</td>
+</tr>
+<tr>
+<td>主库宕机</td>
+<td>确认宕机，提升从库</td>
+<td>runbook §2.3</td>
+</tr>
+<tr>
+<td>数据误删</td>
+<td>停写入，PITR 恢复</td>
+<td>runbook §2.4</td>
+</tr>
+<tr>
+<td>锁等待风暴</td>
+<td>找锁源头，终止或等待</td>
+<td>runbook §2.5</td>
+</tr>
+<tr>
+<td>复制中断</td>
+<td>查从库状态，重建或修复</td>
+<td>runbook §2.6</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-minidb">8. 与 miniDB 的对照<a class="headerlink" href="#8-minidb" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>运维维度</th>
+<th>miniDB</th>
+<th>PostgreSQL</th>
+<th>差异原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>备份</strong></td>
+<td>单文件拷贝</td>
+<td>pg_dump / pg_basebackup / WAL 归档</td>
+<td>PG 需支持在线、PITR、选择性</td>
+</tr>
+<tr>
+<td><strong>恢复</strong></td>
+<td>重启加载</td>
+<td>PITR / pg_restore / 流复制切换</td>
+<td>PG 需任意时间点恢复</td>
+</tr>
+<tr>
+<td><strong>监控</strong></td>
+<td>无</td>
+<td>9 大类指标 + 扩展</td>
+<td>PG 是生产级 C/S</td>
+</tr>
+<tr>
+<td><strong>安全</strong></td>
+<td>无</td>
+<td>SSL / pg_hba / RLS / 审计</td>
+<td>PG 面向网络多用户</td>
+</tr>
+<tr>
+<td><strong>高可用</strong></td>
+<td>无</td>
+<td>流复制 + 故障转移</td>
+<td>miniDB 是嵌入式</td>
+</tr>
+<tr>
+<td><strong>VACUUM</strong></td>
+<td>无</td>
+<td>autovacuum + 手动</td>
+<td>PG 的 MVCC 需清理死元组</td>
+</tr>
+<tr>
+<td><strong>连接管理</strong></td>
+<td>无</td>
+<td>max_connections + 连接池</td>
+<td>miniDB 单进程</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9">9. 文件清单<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backup_demo.py</code></td>
+<td>pg_dump/pg_basebackup/WAL 归档/PITR 演示</td>
+</tr>
+<tr>
+<td><code>monitoring.py</code></td>
+<td>9 大类监控指标采集</td>
+</tr>
+<tr>
+<td><code>security_check.py</code></td>
+<td>8 大维度安全检查</td>
+</tr>
+<tr>
+<td><code>runbook.md</code></td>
+<td>操作手册（日常/紧急/故障排查）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10">10. 习题<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>备份对比</strong>：对同一数据库分别用 <code>pg_dump -F p</code>、<code>-F c</code>、<code>-F d -j 4</code> 执行备份，对比耗时、产物大小、恢复方式。</p>
+</li>
+<li>
+<p><strong>PITR 演练</strong>：在测试库执行基础备份 → 开启 WAL 归档 → 插入数据 → 记录时间点 t1 → 误删表 → 用 PITR 恢复到 t1 → 验证数据。</p>
+</li>
+<li>
+<p><strong>监控脚本扩展</strong>：在 <code>monitoring.py</code> 基础上增加"索引使用率"指标，找出 <code>idx_scan = 0</code> 且体积大于 100MB 的索引。</p>
+</li>
+<li>
+<p><strong>锁等待复现</strong>：在两个终端分别执行 <code>BEGIN; LOCK TABLE t IN ACCESS EXCLUSIVE MODE;</code> 和 <code>SELECT * FROM t;</code>，用监控脚本观察锁等待链，理解锁兼容矩阵。</p>
+</li>
+<li>
+<p><strong>安全加固</strong>：运行 <code>security_check.py</code>，修复所有 ERROR 项，包括移除 trust 认证、启用 SSL、设置 scram-sha-256、配置密码有效期。</p>
+</li>
+<li>
+<p><strong>容量预测</strong>：为一张增长表建立 <code>growth_sample</code> 采样表，连续采样 7 天，计算日均增长，预测 90 天后大小，判断是否需要扩容。</p>
+</li>
+<li>
+<p><strong>故障转移演练</strong>：搭建一主一从测试环境，模拟主库宕机（<code>pg_ctl stop -m immediate</code>），执行从库提升（<code>pg_promote</code>），验证新主库可写，再用 <code>pg_rewind</code> 将旧主库配置为新从库。</p>
+</li>
+<li>
+<p><strong>VACUUM 调优</strong>：构造一张频繁更新的表，观察 <code>n_dead_tup</code> 增长，调整 <code>autovacuum_vacuum_scale_factor</code> 使 autovacuum 更早触发，对比调优前后的死元组水平。</p>
+</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

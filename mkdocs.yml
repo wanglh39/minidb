@@ -1,9 +1,9 @@
 site_name: miniDB — 从零造一个关系型数据库
 site_description: 教学性项目：用 C 语言从字节级造一个迷你 RDBMS，再深入 SQLite/PostgreSQL 实战
-site_url: https://example.github.io/minidb/
-repo_url: https://github.com/example/minidb
-repo_name: example/minidb
-docs_dir: .
+site_url: https://wanglh39.github.io/minidb/
+repo_url: https://github.com/wanglh39/minidb
+repo_name: wanglh39/minidb
+docs_dir: docs
 site_dir: site
 
 theme:
@@ -60,7 +60,7 @@ plugins:
 
 nav:
   - 首页: index.md
-  - 蓝图: ../BLUEPRINT.md
+  - 蓝图: blueprint.md
   - 阶段1 - 从零造数据库:
       - 概述: phase1/index.md
       - 章0 项目基础设施: phase1/00-infrastructure.md
